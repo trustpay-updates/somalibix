@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="so">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>SomaliBix</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',sans-serif;-webkit-tap-highlight-color:transparent;}
+:root{--bg:#fdf8f3;--dark:#1a1028;--gold:#c9a96e;--gold-bg:#f5ede0;--accent:#4f46e5;--red:#ef4444;}
+html,body{height:100%;background:var(--bg);overflow:hidden;position:relative;}
+.page{display:none;flex-direction:column;height:100%;position:absolute;inset:0;background:var(--bg);}
+.page.active{display:flex;}
+.scroll-area{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
+.scroll-area::-webkit-scrollbar{display:none;}
+#mainScroll{position:absolute;top:0;left:0;right:0;bottom:72px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;transition:bottom .25s ease;}
+#mainScroll::-webkit-scrollbar{display:none;}
+body.kb-open #mainScroll{bottom:0!important;}
+.hero{background:linear-gradient(160deg,#0f172a 0%,#1e1b4b 45%,#3b0764 100%);color:#fff;padding:22px 18px 65px;border-radius:0 0 32px 32px;position:relative;overflow:hidden;}
+.hero::before{content:'';position:absolute;bottom:-50px;left:-20%;width:140%;height:100px;background:radial-gradient(ellipse,rgba(99,102,241,.22),transparent 70%);border-radius:50%;}
+.hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;position:relative;z-index:2;}
+.logo{display:flex;align-items:center;gap:9px;font-size:1.22rem;font-weight:800;}
+.bars{display:flex;align-items:center;gap:3px;height:20px;}
+.bars span{display:block;width:3px;background:#60a5fa;border-radius:2px;animation:bp 1.2s ease-in-out infinite;}
+.bars span:nth-child(1){height:9px;animation-delay:0s;}.bars span:nth-child(2){height:18px;animation-delay:.15s;}.bars span:nth-child(3){height:13px;animation-delay:.3s;}.bars span:nth-child(4){height:20px;animation-delay:.45s;}.bars span:nth-child(5){height:11px;animation-delay:.6s;}
+@keyframes bp{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.4);}}
+.hdr-right{display:flex;align-items:center;gap:14px;}
+.bell{position:relative;font-size:1.2rem;color:#cbd5e1;}
+.bell-dot{position:absolute;top:-1px;right:-1px;width:8px;height:8px;background:#ef4444;border-radius:50%;border:2px solid #1e1b4b;}
+.avatar{width:36px;height:36px;background:linear-gradient(135deg,#ec4899,#d946ef);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;box-shadow:0 3px 10px rgba(236,72,153,.4);}
+.hero-body{display:flex;justify-content:space-between;align-items:flex-end;position:relative;z-index:2;}
+.hero-txt h1{font-size:1.5rem;line-height:1.2;margin-bottom:10px;font-weight:800;}
+.hero-txt p{color:#cbd5e1;font-size:.79rem;line-height:1.55;font-weight:300;}
+.hero-char{width:125px;height:145px;flex-shrink:0;position:relative;animation:flt 3s ease-in-out infinite;}
+@keyframes flt{0%,100%{transform:translateY(0);}50%{transform:translateY(-7px);}}
+.fab-bubble{position:absolute;bottom:14px;left:-6px;width:44px;height:44px;background:rgba(79,70,229,.88);backdrop-filter:blur(6px);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 5px 18px rgba(79,70,229,.5);border:2px solid rgba(255,255,255,.22);z-index:3;}
+.fab-bars{display:flex;align-items:center;gap:2px;height:14px;}
+.fab-bars span{display:block;width:2.5px;background:#fff;border-radius:2px;animation:bp 1s ease-in-out infinite;}
+.fab-bars span:nth-child(1){height:6px;animation-delay:0s;}.fab-bars span:nth-child(2){height:12px;animation-delay:.2s;}.fab-bars span:nth-child(3){height:8px;animation-delay:.4s;}
+.yt-section{margin:-32px 18px 0;position:relative;z-index:10;}
+.yt-wrap{background:#fff;border-radius:22px;padding:8px 8px 8px 18px;display:flex;align-items:center;box-shadow:0 12px 35px rgba(0,0,0,.10);border:2.5px solid transparent;transition:border-color .25s,box-shadow .25s;}
+.yt-wrap.focused{border-color:var(--accent);box-shadow:0 12px 35px rgba(79,70,229,.18);}
+.yt-wrap.error-border{border-color:var(--red)!important;box-shadow:0 12px 35px rgba(239,68,68,.18)!important;}
+.yt-wrap i.fa-youtube{color:#ef4444;font-size:1.5rem;margin-right:10px;flex-shrink:0;}
+.yt-wrap input{border:none;outline:none;flex:1;font-size:.87rem;font-weight:500;background:transparent;color:#1e293b;min-width:0;}
+.yt-wrap input::placeholder{color:#94a3b8;font-weight:400;}
+.send-btn{width:42px;height:42px;min-width:42px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 14px rgba(79,70,229,.4);font-size:.95rem;transition:transform .15s;}
+.send-btn:active{transform:scale(.88);}
+.yt-error{margin-top:8px;padding:0 4px;font-size:.78rem;font-weight:600;color:var(--red);display:none;align-items:center;gap:6px;}
+.yt-error.show{display:flex;animation:shakeIn .4s ease;}
+.yt-error.show span{animation:errorPulse 1.2s ease-in-out infinite;}
+@keyframes shakeIn{0%{transform:translateX(-8px);opacity:0;}40%{transform:translateX(5px);}70%{transform:translateX(-3px);}100%{transform:translateX(0);opacity:1;}}
+@keyframes errorPulse{0%,100%{opacity:1;}50%{opacity:.5;}}
+.sec-hdr{display:flex;justify-content:space-between;align-items:center;padding:20px 18px 12px;}
+.sec-hdr h2{font-size:1rem;font-weight:800;color:#1a1028;}
+.sec-hdr .sel-badge{font-size:.75rem;font-weight:600;color:var(--gold);background:var(--gold-bg);padding:4px 10px;border-radius:10px;}
+.voice-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 18px;}
+.voice-card{border-radius:22px;padding:18px 14px;display:flex;flex-direction:column;align-items:center;gap:12px;cursor:pointer;transition:all .22s;border:2.5px solid transparent;position:relative;overflow:hidden;}
+.voice-card:active{transform:scale(.96);}
+.voice-card.sel{border-color:var(--dark);box-shadow:0 8px 25px rgba(26,16,40,.18);background:#1e1b4b!important;}
+.voice-card.sel::after{content:'\f00c';font-family:'Font Awesome 6 Free';font-weight:900;position:absolute;top:10px;right:10px;width:22px;height:22px;background:var(--gold);color:#1a1028;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;}
+.vc-avatar{width:62px;height:62px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(0,0,0,.12);overflow:hidden;}
+.vc-name{font-size:.95rem;font-weight:700;color:#1a1028;text-align:center;}
+.vc-gender{font-size:.72rem;font-weight:500;padding:3px 10px;border-radius:8px;}
+.vc-liibaan{background:#eef2ff;}.vc-liibaan .vc-gender{background:#dbeafe;color:#2563eb;}
+.vc-hodan{background:#fff1f2;}.vc-hodan .vc-gender{background:#fce7f3;color:#db2777;}
+.vc-muuse{background:#ecfdf5;}.vc-muuse .vc-gender{background:#d1fae5;color:#059669;}
+.vc-ubax{background:#eff6ff;}.vc-ubax .vc-gender{background:#e0e7ff;color:#4f46e5;}
+.voice-card.sel .vc-name{color:#fff;}
+.voice-card.sel .vc-gender{background:rgba(255,255,255,.15)!important;color:rgba(255,255,255,.7)!important;}
+.quality-section{padding:0 18px;}
+.quality-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.q-btn{border-radius:16px;padding:15px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:.88rem;font-weight:700;cursor:pointer;transition:all .2s;border:2px solid transparent;}
+.q-btn:active{transform:scale(.97);}
+.q-premium{background:#ede9e3;color:#94a3b8;border-color:#ede9e3;}
+.q-medium{background:var(--dark);color:#fff;border-color:var(--dark);box-shadow:0 6px 20px rgba(26,16,40,.3);}
+.q-note{background:#ede9e3;border-radius:14px;padding:12px 16px;font-size:.77rem;color:#7c6f8a;line-height:1.5;}
+.watch-btn{margin:18px 18px 10px;background:var(--dark);border-radius:20px;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border:none;width:calc(100% - 36px);transition:all .15s;}
+.watch-btn:active{transform:scale(.98);opacity:.9;}
+.watch-btn span{color:#fff;font-size:.97rem;font-weight:700;}
+.watch-btn .arr{width:40px;height:40px;background:rgba(255,255,255,.12);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;}
+.credit-bar{margin:0 18px 4px;background:#ede9e3;border-radius:14px;padding:13px;text-align:center;font-size:.84rem;font-weight:600;color:#7c6f8a;}
+.credit-bar strong{color:var(--gold);}
+.earlier-scroll{display:flex;gap:12px;overflow-x:auto;padding:4px 18px 8px;-webkit-overflow-scrolling:touch;}
+.earlier-scroll::-webkit-scrollbar{display:none;}
+.earlier-empty{flex:1;min-width:220px;background:#ede9e3;border-radius:18px;padding:28px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;}
+.earlier-empty i{font-size:2.2rem;color:#c9b896;}
+.earlier-empty p{font-size:.82rem;color:#94a3b8;font-weight:600;}
+.earlier-empty small{font-size:.72rem;color:#b8a99a;}
+.e-card{min-width:155px;max-width:155px;border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 3px 12px rgba(0,0,0,.08);flex-shrink:0;cursor:pointer;transition:transform .15s;}
+.e-card:active{transform:scale(.96);}
+.e-thumb{width:100%;height:90px;background:#1a1028;position:relative;overflow:hidden;}
+.e-thumb img{width:100%;height:100%;object-fit:cover;}
+.e-thumb .play-ico{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;}
+.e-thumb .play-ico i{font-size:1.6rem;color:rgba(255,255,255,.35);}
+.e-badge{position:absolute;top:6px;left:6px;background:var(--gold);color:#1a1028;font-size:.58rem;font-weight:800;padding:2px 6px;border-radius:6px;z-index:2;}
+.e-info{padding:8px 10px;}
+.e-info p{font-size:.72rem;font-weight:600;color:#1a1028;line-height:1.3;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.e-info small{font-size:.64rem;color:#94a3b8;display:flex;align-items:center;gap:4px;}
+.how-card{margin:0 18px 24px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 3px 15px rgba(0,0,0,.05);}
+.how-step{display:flex;align-items:flex-start;gap:14px;padding:16px 18px;border-bottom:1px solid #f1ede8;}
+.how-step:last-child{border-bottom:none;}
+.step-num{width:34px;height:34px;min-width:34px;background:var(--gold-bg);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:800;color:var(--gold);}
+.step-txt h4{font-size:.87rem;font-weight:700;color:#1a1028;margin-bottom:3px;}
+.step-txt p{font-size:.74rem;color:#7c6f8a;line-height:1.45;}
+.player-header{background:var(--bg);padding:14px 18px 10px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;border-bottom:1px solid #ede9e3;}
+.player-header .logo{font-size:1.1rem;}.player-header .logo .bars span{background:var(--gold);}
+.ph-right{display:flex;align-items:center;gap:10px;}
+.credit-badge{background:rgba(201,169,110,.15);border:1px solid rgba(201,169,110,.3);color:var(--gold);padding:4px 10px;border-radius:16px;font-size:.72rem;font-weight:600;display:flex;align-items:center;gap:5px;}
+.player-subheader{background:var(--bg);padding:8px 18px 12px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;}
+.back-btn{display:flex;align-items:center;gap:8px;color:#1a1028;font-size:.88rem;font-weight:600;cursor:pointer;background:none;border:none;padding:6px 0;}
+.back-btn i{font-size:.85rem;}
+.voice-badge{background:var(--gold-bg);color:var(--gold);padding:6px 14px;border-radius:14px;font-size:.78rem;font-weight:700;display:flex;align-items:center;gap:6px;}
+.voice-badge .mini-bars{display:flex;align-items:center;gap:2px;height:12px;}
+.voice-badge .mini-bars span{display:block;width:2px;background:var(--gold);border-radius:1px;animation:bp 1s ease-in-out infinite;}
+.voice-badge .mini-bars span:nth-child(1){height:5px;animation-delay:0s;}.voice-badge .mini-bars span:nth-child(2){height:10px;animation-delay:.2s;}.voice-badge .mini-bars span:nth-child(3){height:7px;animation-delay:.4s;}
+.video-container{background:#000;width:100%;aspect-ratio:16/9;position:relative;flex-shrink:0;overflow:hidden;}
+.video-container iframe{width:100%;height:100%;border:none;position:absolute;top:0;left:0;}
+.video-ph{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:rgba(255,255,255,.5);position:absolute;top:0;left:0;z-index:1;}
+.video-ph i{font-size:2.5rem;}.video-ph p{font-size:.85rem;font-weight:500;}
+.video-ld{position:absolute;inset:0;background:rgba(26,16,40,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:5;}
+.video-ld.hidden{display:none;}
+.video-ld h3{color:#fff;font-size:1.05rem;font-weight:700;}
+.wave-a{display:flex;align-items:center;gap:3px;height:30px;}
+.wave-a span{display:block;width:3px;background:var(--gold);border-radius:2px;animation:wBar 1.2s ease-in-out infinite;}
+.wave-a span:nth-child(1){height:8px;animation-delay:0s;}.wave-a span:nth-child(2){height:18px;animation-delay:.1s;}.wave-a span:nth-child(3){height:12px;animation-delay:.2s;}.wave-a span:nth-child(4){height:22px;animation-delay:.3s;}.wave-a span:nth-child(5){height:10px;animation-delay:.4s;}.wave-a span:nth-child(6){height:20px;animation-delay:.5s;}.wave-a span:nth-child(7){height:14px;animation-delay:.6s;}.wave-a span:nth-child(8){height:24px;animation-delay:.7s;}.wave-a span:nth-child(9){height:8px;animation-delay:.8s;}.wave-a span:nth-child(10){height:16px;animation-delay:.9s;}.wave-a span:nth-child(11){height:12px;animation-delay:1s;}.wave-a span:nth-child(12){height:20px;animation-delay:1.1s;}
+@keyframes wBar{0%,100%{transform:scaleY(1);}50%{transform:scaleY(.3);}}
+.video-ld .ptxt{color:rgba(255,255,255,.6);font-size:.8rem;font-weight:500;}
+.speed-row{margin:12px 18px 0;background:var(--dark);border-radius:16px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.speed-ctrl{display:flex;align-items:center;gap:16px;}
+.sp-btn{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.1);border:none;color:#fff;font-size:1rem;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.sp-btn:active{transform:scale(.9);background:rgba(255,255,255,.2);}
+.sp-val{color:#fff;font-size:.95rem;font-weight:700;min-width:30px;text-align:center;}
+.fs-btn{display:flex;align-items:center;gap:8px;background:none;border:none;color:rgba(255,255,255,.7);font-size:.82rem;font-weight:600;cursor:pointer;padding:6px 10px;border-radius:10px;}
+.sub-bar{margin:10px 18px 0;background:var(--dark);border-radius:14px;padding:14px 16px;min-height:48px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.sub-bar p{color:#fff;font-size:.88rem;font-weight:500;text-align:center;line-height:1.5;}
+.sub-bar.empty p{color:rgba(255,255,255,.3);font-style:italic;}
+.vid-info{padding:16px 18px 8px;flex-shrink:0;}
+.vid-info h3{font-size:1rem;font-weight:800;color:#1a1028;line-height:1.4;margin-bottom:6px;}
+.vid-info .meta{font-size:.78rem;color:#7c6f8a;font-weight:500;}
+.dl-row{display:flex;gap:10px;padding:12px 18px;flex-shrink:0;}
+.dl-btn{flex:1;border:1.5px solid #e2ddd5;border-radius:14px;padding:12px 8px;display:flex;align-items:center;justify-content:center;gap:6px;background:#fff;cursor:pointer;font-size:.8rem;font-weight:600;color:#1a1028;transition:all .15s;}
+.dl-btn:active{transform:scale(.96);background:#f5f0ea;}
+.dl-btn i{font-size:.85rem;color:#7c6f8a;}
+.pv-sec{margin:8px 18px;background:#fff;border-radius:20px;padding:18px;box-shadow:0 3px 15px rgba(0,0,0,.04);flex-shrink:0;}
+.pv-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.pv-hdr h3{font-size:.95rem;font-weight:800;color:#1a1028;}.pv-hdr span{font-size:.72rem;color:#94a3b8;font-weight:500;}
+.pv-grid{display:flex;justify-content:space-around;gap:8px;}
+.pv-item{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;padding:8px;border-radius:14px;transition:all .2s;border:2px solid transparent;}
+.pv-item:active{transform:scale(.95);}.pv-item.sel{border-color:var(--dark);}
+.pv-av{width:50px;height:50px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.pv-nm{font-size:.78rem;font-weight:700;color:#1a1028;}
+.sl-sec{padding:14px 18px;flex-shrink:0;}
+.sl-grp{margin-bottom:16px;}
+.sl-lbl{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.sl-lbl span{font-size:.85rem;font-weight:700;color:#1a1028;}.sl-lbl .pct{font-size:.85rem;font-weight:700;color:var(--gold);}
+input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:#e2ddd5;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--dark);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+.tog-row{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-top:1px solid #ede9e3;margin:0 18px;flex-shrink:0;}
+.tog-info h4{font-size:.88rem;font-weight:700;color:#1a1028;}.tog-info p{font-size:.72rem;color:#94a3b8;margin-top:2px;}
+.tog-sw{width:50px;height:28px;background:#ccc;border-radius:14px;position:relative;cursor:pointer;transition:background .25s;flex-shrink:0;}
+.tog-sw.on{background:var(--dark);}
+.tog-sw::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;background:#fff;border-radius:50%;transition:transform .25s;box-shadow:0 2px 4px rgba(0,0,0,.15);}
+.tog-sw.on::after{transform:translateX(22px);}
+.subs-sec{padding:14px 18px 24px;flex-shrink:0;}
+.subs-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.subs-hdr h3{font-size:.95rem;font-weight:800;color:#1a1028;}.subs-hdr span{font-size:.72rem;color:#94a3b8;font-weight:500;}
+.subs-list{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,.04);max-height:400px;overflow-y:auto;}
+.subs-list::-webkit-scrollbar{display:none;}
+.sub-it{display:flex;gap:12px;padding:14px 16px;border-bottom:1px solid #f5f0ea;cursor:pointer;transition:background .2s;align-items:flex-start;}
+.sub-it:last-child{border-bottom:none;}.sub-it:active{background:#f5f0ea;}
+.sub-it.act{background:var(--gold-bg);border-left:3px solid var(--gold);}
+.sub-tm{font-size:.78rem;font-weight:700;color:var(--gold);min-width:38px;padding-top:2px;}
+.sub-tx{font-size:.84rem;font-weight:600;color:#1a1028;line-height:1.5;}
+.subs-empty{padding:24px;text-align:center;color:#94a3b8;font-size:.82rem;line-height:1.6;}
+.subs-ld{padding:24px;text-align:center;color:var(--gold);font-size:.82rem;font-weight:600;}
+.open-yt-btn{margin:10px 18px 0;background:#ff0000;border-radius:14px;padding:14px;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;border:none;width:calc(100% - 36px);transition:all .15s;}
+.open-yt-btn:active{transform:scale(.97);opacity:.9;}
+.open-yt-btn span{color:#fff;font-size:.9rem;font-weight:700;}
+.open-yt-btn i{color:#fff;font-size:1.1rem;}
+.bot-nav{position:fixed;bottom:0;left:0;width:100%;height:72px;background:rgba(26,16,40,.97);backdrop-filter:blur(12px);display:flex;justify-content:space-around;align-items:center;padding:0 8px;border-radius:22px 22px 0 0;box-shadow:0 -6px 25px rgba(0,0,0,.18);z-index:200;transition:transform .28s cubic-bezier(.4,0,.2,1),opacity .28s ease,visibility .28s;}
+body.kb-open .bot-nav{transform:translateY(100%)!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important;height:0!important;padding:0!important;overflow:hidden!important;}
+.nav-it{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.64rem;font-weight:600;transition:all .25s;position:relative;padding:4px 10px;border-radius:12px;cursor:pointer;}
+.nav-it i{font-size:1.2rem;}.nav-it.active{color:#fff;background:rgba(201,169,110,.18);}.nav-it.active i{color:var(--gold);}
+.nav-it.disabled{color:rgba(255,255,255,.22);cursor:not-allowed;}.nav-it.disabled i{color:rgba(255,255,255,.18);}
+.nav-it.disabled::after{content:'Soon';position:absolute;top:-6px;right:-4px;background:rgba(255,255,255,.12);color:rgba(255,255,255,.35);font-size:.48rem;font-weight:700;padding:1px 4px;border-radius:4px;}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--dark);color:#fff;padding:12px 22px;border-radius:14px;font-size:.84rem;font-weight:600;z-index:9999;transition:transform .35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 8px 25px rgba(0,0,0,.25);white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div class="page active" id="pgHome">
+<div id="mainScroll">
+  <div class="hero"><div class="hdr"><div class="logo"><div class="bars"><span></span><span></span><span></span><span></span><span></span></div>SomaliBix</div><div class="hdr-right"><div class="bell"><i class="fa-regular fa-bell"></i><div class="bell-dot"></div></div><div class="avatar">M</div></div></div><div class="hero-body"><div class="hero-txt"><h1>Ku soo dhawow<br>SomaliBix 👋</h1><p>Codkaaga, tarjumaaddaada,<br>soo bandhig adiga.</p></div><div class="hero-char"><svg viewBox="0 0 160 180" xmlns="http://www.w3.org/2000/svg" width="125" height="145"><ellipse cx="80" cy="168" rx="50" ry="8" fill="rgba(99,102,241,.2)"/><path d="M28 180 Q28 118 80 112 Q132 118 132 180 Z" fill="#1e2a4a"/><path d="M52 180 Q52 128 80 122 Q108 128 108 180 Z" fill="#253560" opacity=".5"/><line x1="71" y1="122" x2="69" y2="145" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/><line x1="89" y1="122" x2="91" y2="145" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/><path d="M48 118 Q80 132 112 118 Q106 108 80 110 Q54 108 48 118 Z" fill="#2d3f6e"/><rect x="69" y="96" width="22" height="22" rx="9" fill="#c68642"/><ellipse cx="80" cy="70" rx="34" ry="38" fill="#d4956b"/><ellipse cx="80" cy="47" rx="36" ry="18" fill="#f1f5f9"/><path d="M44 47 Q44 27 80 24 Q116 27 116 47 Z" fill="#f8fafc"/><ellipse cx="80" cy="47" rx="36" ry="8" fill="#e2e8f0"/><ellipse cx="46" cy="73" rx="7" ry="10" fill="#c68642"/><ellipse cx="114" cy="73" rx="7" ry="10" fill="#c68642"/><ellipse cx="67" cy="70" rx="5" ry="6" fill="#1e293b"/><ellipse cx="93" cy="70" rx="5" ry="6" fill="#1e293b"/><circle cx="69" cy="68" r="2" fill="#fff"/><circle cx="95" cy="68" r="2" fill="#fff"/><path d="M58 61 Q67 57 76 61" stroke="#1e293b" stroke-width="2.5" stroke-linecap="round" fill="none"/><path d="M84 61 Q93 57 102 61" stroke="#1e293b" stroke-width="2.5" stroke-linecap="round" fill="none"/><path d="M67 90 Q80 103 93 90 Z" fill="#1e293b"/><path d="M69 90 Q80 96 91 90 Z" fill="#fff"/><rect x="118" y="88" width="4" height="78" rx="2" fill="#475569"/><ellipse cx="120" cy="166" rx="13" ry="5" fill="#334155"/><rect x="110" y="70" width="20" height="28" rx="10" fill="#1e293b"/></svg><div class="fab-bubble"><div class="fab-bars"><span></span><span></span><span></span></div></div></div></div></div>
+  <div class="yt-section"><div class="yt-wrap" id="ytWrap"><i class="fa-brands fa-youtube"></i><input type="url" id="ytIn" placeholder="Ku dheji link-ga YouTube..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"><button class="send-btn" id="sendBtn"><i class="fa-solid fa-arrow-right"></i></button></div><div class="yt-error" id="ytErr"><i class="fa-solid fa-circle-exclamation"></i><span>This is not a YouTube video link.</span></div></div>
+  <div class="sec-hdr"><h2>🎤 Dooro Codka</h2><div class="sel-badge" id="selB">Liibaan selected</div></div>
+  <div class="voice-grid">
+    <div class="voice-card vc-liibaan sel" data-v="Liibaan"><div class="vc-avatar" style="background:linear-gradient(135deg,#c9a96e,#a07840);"><svg viewBox="0 0 62 62" width="62" height="62"><circle cx="31" cy="55" r="20" fill="#1e2a4a"/><circle cx="31" cy="26" r="14" fill="#c68642"/><ellipse cx="31" cy="16" rx="15" ry="9" fill="#f1f5f9"/><circle cx="26" cy="24" r="2.2" fill="#1a1028"/><circle cx="36" cy="24" r="2.2" fill="#1a1028"/><path d="M25 31 Q31 35 37 31" stroke="#1a1028" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></div><div class="vc-name">Liibaan</div><div class="vc-gender">Male</div></div>
+    <div class="voice-card vc-hodan" data-v="Hodan"><div class="vc-avatar" style="background:linear-gradient(135deg,#d4a574,#b07840);"><svg viewBox="0 0 62 62" width="62" height="62"><circle cx="31" cy="55" r="20" fill="#7c3aed"/><circle cx="31" cy="28" r="13" fill="#c68642"/><path d="M14 22 Q14 8 31 6 Q48 8 48 22 Q48 30 40 29 L22 29 Q14 30 14 22 Z" fill="#d4a574"/><circle cx="26" cy="26" r="2" fill="#1a1028"/><circle cx="36" cy="26" r="2" fill="#1a1028"/><path d="M26 33 Q31 36 36 33" stroke="#1a1028" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></div><div class="vc-name">Hodan</div><div class="vc-gender">Female</div></div>
+    <div class="voice-card vc-muuse" data-v="Muuse"><div class="vc-avatar" style="background:linear-gradient(135deg,#a0785a,#7a5530);"><svg viewBox="0 0 62 62" width="62" height="62"><circle cx="31" cy="55" r="20" fill="#334155"/><circle cx="31" cy="27" r="13" fill="#8B5E3C"/><ellipse cx="31" cy="17" rx="14" ry="8" fill="#f1f5f9"/><circle cx="26" cy="25" r="2" fill="#1a1028"/><circle cx="36" cy="25" r="2" fill="#1a1028"/><path d="M25 32 Q31 36 37 32" stroke="#1a1028" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg></div><div class="vc-name">Muuse</div><div class="vc-gender">Male</div></div>
+    <div class="voice-card vc-ubax" data-v="Ubax"><div class="vc-avatar" style="background:linear-gradient(135deg,#e8a0c8,#c06090);"><svg viewBox="0 0 62 62" width="62" height="62"><circle cx="31" cy="55" r="20" fill="#be185d"/><circle cx="31" cy="28" r="13" fill="#c68642"/><path d="M13 23 Q13 7 31 5 Q49 7 49 23 Q49 32 40 30 L22 30 Q13 32 13 23 Z" fill="#e8a0c8"/><circle cx="26" cy="26" r="2" fill="#1a1028"/><circle cx="36" cy="26" r="2" fill="#1a1028"/><path d="M26 33 Q31 36 36 33" stroke="#1a1028" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></div><div class="vc-name">Ubax</div><div class="vc-gender">Female</div></div>
+  </div>
+  <div class="sec-hdr" style="padding-top:22px;"><h2>⚡ Tayada</h2></div>
+  <div class="quality-section"><div class="quality-row"><div class="q-btn q-premium" onclick="toast('🔒 Premium = Credit')"><i class="fa-solid fa-chart-simple"></i> Premium <i class="fa-solid fa-lock" style="font-size:.72rem;"></i></div><div class="q-btn q-medium" onclick="toast('✅ Medium')"><i class="fa-solid fa-chart-simple"></i> Medium</div></div><div class="q-note">Premium wuxuu u baahan yahay credit. Daawashada bilaashku waxay ku shaqeysaa Medium.</div></div>
+  <button class="watch-btn" id="watchBtn"><span>▶ Ku Daawo Af-Soomaali</span><div class="arr"><i class="fa-solid fa-arrow-right"></i></div></button>
+  <div class="credit-bar">Credit-kaaga: <strong>0</strong></div>
+  <div class="sec-hdr" style="padding-top:18px;"><h2>📺 Hore</h2><span style="font-size:.75rem;color:#94a3b8;" id="hCnt">0 muuqaal</span></div>
+  <div class="earlier-scroll" id="eBox"><div class="earlier-empty"><i class="fa-regular fa-circle-play"></i><p>Wali muuqaal ma jiro</p><small>Geli link-ga YouTube</small></div></div>
+  <div class="sec-hdr" style="padding-top:18px;"><h2>📖 Sida ay u shaqeyso</h2></div>
+  <div class="how-card"><div class="how-step"><div class="step-num">1</div><div class="step-txt"><h4>Geli Link</h4><p>Ku dheji link-ga YouTube.</p></div></div><div class="how-step"><div class="step-num">2</div><div class="step-txt"><h4>Waan Tarjumaynaa</h4><p>Subtitles → Af-Soomaali.</p></div></div><div class="how-step"><div class="step-num">3</div><div class="step-txt"><h4>Dhageyso</h4><p>Cod Soomaaliyeed oo dabiici ah.</p></div></div></div>
+</div></div>
+<div class="page" id="pgPlayer">
+  <div class="player-header"><div class="logo"><div class="bars"><span></span><span></span><span></span><span></span><span></span></div>SomaliBix</div><div class="ph-right"><div class="credit-badge"><i class="fa-solid fa-chart-simple"></i> Credit: 0</div><div class="bell" style="font-size:1rem;"><i class="fa-regular fa-bell"></i></div><div class="avatar" style="width:30px;height:30px;font-size:.8rem;">M</div></div></div>
+  <div class="player-subheader"><button class="back-btn" id="backBtn"><i class="fa-solid fa-arrow-left"></i> Muuqaal kale</button><div class="voice-badge"><div class="mini-bars"><span></span><span></span><span></span></div> Soomaali · <span id="pvN">Liibaan</span></div></div>
+  <div class="scroll-area" id="pScroll">
+    <div class="video-container" id="vidCont"><div class="video-ph" id="vidPh"><i class="fa-brands fa-youtube"></i><p>Video-ga halkan ayuu ka muuqan doonaa</p></div><div class="video-ld hidden" id="vidLd"><h3>Diyaarinaya Soomaaliga...</h3><div class="wave-a"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><p class="ptxt" id="pTxt">Waa la soo dejinayaa...</p></div></div>
+    <button class="open-yt-btn" id="openYtBtn" style="display:none;" onclick="openOnYT()"><i class="fa-brands fa-youtube"></i><span>Ku Daawo YouTube-ka</span></button>
+    <div class="speed-row"><div class="speed-ctrl"><button class="sp-btn" id="spD"><i class="fa-solid fa-minus"></i></button><span class="sp-val" id="spV">1×</span><button class="sp-btn" id="spU"><i class="fa-solid fa-plus"></i></button></div><button class="fs-btn" id="fsBtn"><i class="fa-solid fa-expand"></i> Shaashad buuxda</button></div>
+    <div class="sub-bar empty" id="subBar"><p id="subTxt">Subtitles-ka Soomaaliga halkan ayay ka muuqan doonaan</p></div>
+    <div class="vid-info"><h3 id="vTitle">YouTube Video</h3><p class="meta" id="vMeta">Liibaan · Waa la diyaarinayaa... · Credit: 0</p></div>
+    <div class="dl-row"><button class="dl-btn" onclick="toast('📄 .srt — Dhawaan!')"><i class="fa-solid fa-download"></i> .srt</button><button class="dl-btn" onclick="toast('🎵 .mp3 — Dhawaan!')"><i class="fa-solid fa-download"></i> .mp3</button><button class="dl-btn" onclick="doShare()"><i class="fa-solid fa-share-nodes"></i> La wadaag</button></div>
+    <div class="pv-sec"><div class="pv-hdr"><h3>Codka</h3><span>Beddel mar kasta</span></div><div class="pv-grid">
+      <div class="pv-item sel" data-pv="Liibaan" onclick="pickPV(this,'Liibaan')"><div class="pv-av" style="background:linear-gradient(135deg,#c9a96e,#a07840);"><svg viewBox="0 0 50 50" width="50" height="50"><circle cx="25" cy="44" r="16" fill="#1e2a4a"/><circle cx="25" cy="21" r="11" fill="#c68642"/><ellipse cx="25" cy="13" rx="12" ry="7" fill="#f1f5f9"/><circle cx="21" cy="19" r="1.8" fill="#1a1028"/><circle cx="29" cy="19" r="1.8" fill="#1a1028"/><path d="M20 25 Q25 28 30 25" stroke="#1a1028" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></div><div class="pv-nm">Liibaan</div></div>
+      <div class="pv-item" data-pv="Hodan" onclick="pickPV(this,'Hodan')"><div class="pv-av" style="background:linear-gradient(135deg,#d4a574,#b07840);"><svg viewBox="0 0 50 50" width="50" height="50"><circle cx="25" cy="44" r="16" fill="#7c3aed"/><circle cx="25" cy="22" r="10" fill="#c68642"/><path d="M12 18 Q12 7 25 5 Q38 7 38 18 Q38 24 32 23 L18 23 Q12 24 12 18 Z" fill="#d4a574"/><circle cx="21" cy="20" r="1.6" fill="#1a1028"/><circle cx="29" cy="20" r="1.6" fill="#1a1028"/><path d="M21 26 Q25 29 29 26" stroke="#1a1028" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg></div><div class="pv-nm">Hodan</div></div>
+      <div class="pv-item" data-pv="Muuse" onclick="pickPV(this,'Muuse')"><div class="pv-av" style="background:linear-gradient(135deg,#a0785a,#7a5530);"><svg viewBox="0 0 50 50" width="50" height="50"><circle cx="25" cy="44" r="16" fill="#334155"/><circle cx="25" cy="22" r="10" fill="#8B5E3C"/><ellipse cx="25" cy="14" rx="11" ry="6" fill="#f1f5f9"/><circle cx="21" cy="20" r="1.6" fill="#1a1028"/><circle cx="29" cy="20" r="1.6" fill="#1a1028"/><path d="M20 26 Q25 29 30 26" stroke="#1a1028" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg></div><div class="pv-nm">Muuse</div></div>
+      <div class="pv-item" data-pv="Ubax" onclick="pickPV(this,'Ubax')"><div class="pv-av" style="background:linear-gradient(135deg,#e8a0c8,#c06090);"><svg viewBox="0 0 50 50" width="50" height="50"><circle cx="25" cy="44" r="16" fill="#be185d"/><circle cx="25" cy="22" r="10" fill="#c68642"/><path d="M11 19 Q11 6 25 4 Q39 6 39 19 Q39 26 32 24 L18 24 Q11 26 11 19 Z" fill="#e8a0c8"/><circle cx="21" cy="20" r="1.6" fill="#1a1028"/><circle cx="29" cy="20" r="1.6" fill="#1a1028"/><path d="M21 26 Q25 29 29 26" stroke="#1a1028" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg></div><div class="pv-nm">Ubax</div></div>
+    </div></div>
+    <div class="sl-sec"><div class="sl-grp"><div class="sl-lbl"><span>Codka Soomaaliga</span><span class="pct" id="sPct">100%</span></div><input type="range" min="0" max="100" value="100" oninput="document.getElementById('sPct').textContent=this.value+'%'"></div><div class="sl-grp"><div class="sl-lbl"><span>Codka asalka</span><span class="pct" id="oPct">36%</span></div><input type="range" id="oVol" min="0" max="100" value="36" oninput="document.getElementById('oPct').textContent=this.value+'%'"></div></div>
+    <div class="tog-row"><div class="tog-info"><h4>Qoraalka Soomaaliga</h4><p>Ku muuji muuqaalka hoostiisa</p></div><div class="tog-sw on" id="sTog" onclick="togSubs()"></div></div>
+    <div class="subs-sec" id="subsSec"><div class="subs-hdr"><h3>Qoraalka (English → Soomaali)</h3><span>Sadar taabo si aad ugu booddo</span></div><div class="subs-list" id="sList"><div class="subs-ld"><i class="fa-solid fa-spinner fa-spin"></i> Waa la soo dejinayaa...</div></div></div>
+  </div>
+</div>
+<div class="bot-nav" id="bNav"><div class="nav-it active" onclick="toast('🏠 Home')"><i class="fa-solid fa-house"></i><span>Home</span></div><div class="nav-it disabled" onclick="toast('🔜 Dhawaan!')"><i class="fa-solid fa-microphone-lines"></i><span>Qoraal→Cod</span></div><div class="nav-it disabled" onclick="toast('🔜 Dhawaan!')"><i class="fa-solid fa-book-bookmark"></i><span>Maktabad</span></div><div class="nav-it disabled" onclick="toast('🔜 Dhawaan!')"><i class="fa-regular fa-circle-user"></i><span>Account</span></div></div>
+<div class="toast" id="tEl"></div>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+(function(){
+'use strict';
+var voice='Liibaan',hist=[],errTmr=null,kbOpen=false;
+var curVid=null,subs=[],subVis=true,subInt=null,lastIdx=-1;
+var spIdx=2,spds=[0.5,0.75,1,1.25,1.5,2],spVal=1;
+var ytP=null,ytReady=false,pState=-1;
+var $=function(i){return document.getElementById(i);};
+var ytIn=$('ytIn'),ytW=$('ytWrap'),ytE=$('ytErr');
+var iH=window.innerHeight;
+function sKb(o){if(kbOpen===o)return;kbOpen=o;document.body.classList.toggle('kb-open',o);}
+window.addEventListener('resize',function(){sKb(window.innerHeight<iH*0.75);});
+if(window.visualViewport)window.visualViewport.addEventListener('resize',function(){sKb(window.visualViewport.height<iH*0.75);});
+ytIn.addEventListener('focus',function(){sKb(true);setTimeout(function(){ytIn.scrollIntoView({behavior:'smooth',block:'center'});},300);});
+ytIn.addEventListener('blur',function(){setTimeout(function(){if(document.activeElement!==ytIn)sKb(false);},150);});
+function sErr(){if(errTmr)clearTimeout(errTmr);ytW.classList.add('error-border');ytE.classList.add('show');errTmr=setTimeout(hErr,5000);}
+function hErr(){if(errTmr){clearTimeout(errTmr);errTmr=null;}ytW.classList.remove('error-border');ytE.classList.remove('show');}
+ytIn.addEventListener('input',function(){if(isYT(ytIn.value.trim()))hErr();});
+ytIn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doSend();}});
+function isYT(u){return u&&/^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)[\w\-]{11}/.test(u.trim());}
+function gVid(u){var m=u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w\-]{11})/);return m?m[1]:null;}
+$('sendBtn').addEventListener('click',doSend);
+function doSend(){var v=ytIn.value.trim();if(!v){ytIn.focus();toast('⚠️ Fadlan geli link');return;}if(!isYT(v)){sErr();return;}hErr();launch(gVid(v));}
+$('watchBtn').addEventListener('click',function(){var v=ytIn.value.trim();if(!v){$('mainScroll').scrollTo({top:0,behavior:'smooth'});setTimeout(function(){ytIn.focus();},350);toast('⚠️ Fadlan geli link');return;}if(!isYT(v)){$('mainScroll').scrollTo({top:0,behavior:'smooth'});setTimeout(sErr,350);return;}hErr();launch(gVid(v));});
+function launch(vid){
+if(!vid){toast('⚠️ Video ID lama helin');return;}
+curVid=vid;subs=[];lastIdx=-1;stopSync();
+$('pgHome').classList.remove('active');$('pgPlayer').classList.add('active');$('bNav').style.display='none';
+$('pvN').textContent=voice;$('vTitle').textContent='YouTube Video';
+$('vMeta').textContent=voice+' · Waa la diyaarinayaa... · Credit: 0';
+$('sList').innerHTML='<div class="subs-ld"><i class="fa-solid fa-spinner fa-spin"></i> Waa la soo dejinayaa subtitles-ka...</div>';
+$('subBar').classList.add('empty');$('subTxt').textContent='Subtitles-ka halkan ayay ka muuqan doonaan';
+$('vidLd').classList.remove('hidden');$('vidPh').style.display='none';
+$('pTxt').textContent='Waa la raadinayaa subtitles-ka server-ka...';
+$('openYtBtn').style.display='none';
+var old=$('vidCont').querySelector('iframe');if(old)old.remove();
+if(ytP&&ytP.destroy){try{ytP.destroy();}catch(e){}}ytP=null;
+var ifr=document.createElement('iframe');ifr.id='ytFr';
+ifr.src='https://www.youtube.com/embed/'+vid+'?enablejsapi=1&controls=1&modestbranding=1&rel=0&playsinline=1&fs=1';
+ifr.referrerPolicy='strict-origin-when-cross-origin';
+ifr.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+ifr.allowFullscreen=true;
+ifr.style.cssText='width:100%;height:100%;border:none;position:absolute;top:0;left:0;';
+$('vidCont').appendChild(ifr);
+setTimeout(function(){initYT(ifr.id);},1000);
+fetchSubs(vid);
+}
+window.onYouTubeIframeAPIReady=function(){ytReady=true;if(curVid)initYT('ytFr');};
+function initYT(id){
+if(!ytReady){setTimeout(function(){initYT(id);},500);return;}
+try{ytP=new YT.Player(id,{events:{
+onReady:function(e){e.target.setVolume(parseInt($('oVol').value));toast('✅ Video diyaar');},
+onStateChange:function(e){pState=e.data;if(e.data===1)startSync();else stopSync();},
+onError:function(e){console.log('YT Err:',e.data);if(e.data===153||e.data===150||e.data===101||e.data===5){$('openYtBtn').style.display='flex';toast('▶ YouTube ka daawo');}}
+}});}catch(e){console.log('YT init err:',e);$('openYtBtn').style.display='flex';}
+}
+window.openOnYT=function(){if(curVid)window.open('https://m.youtube.com/watch?v='+curVid,'_blank');};
+async function fetchSubs(vid){
+var pt=$('pTxt');
+pt.textContent='Waa la raadinayaa subtitles-ka server-ka...';
+try{
+var resp=await fetch('/api/subtitles?videoId='+encodeURIComponent(vid));
+if(!resp.ok){var ed=await resp.json().catch(function(){return{};});throw new Error(ed.error||'Server error '+resp.status);}
+var data=await resp.json();
+if(data.success&&data.captions&&data.captions.length>0){
+var formatted=data.captions.map(function(c){return{startTime:c.startTime,endTime:c.endTime,somaliText:c.text};});
+gotSubs(formatted,data.languageName||data.language);return;
+}
+throw new Error('No captions in response');
+}catch(e){console.log('Server failed:',e.message);}
+pt.textContent='Server fallback — toos ah...';
+try{var s=await tryDirect(vid);if(s&&s.length>0){gotSubs(s,'English');return;}}catch(e2){console.log('Direct failed:',e2.message);}
+setTimeout(function(){
+$('vidLd').classList.add('hidden');
+$('sList').innerHTML='<div class="subs-empty">⚠️ Subtitles lama helin video-gan.<br><br>• Video-gu ma laha captions<br>• Isku day video kale (TED Talks, news)</div>';
+$('vMeta').textContent=voice+' · 0 jumladood · Credit: 0';
+$('subBar').classList.add('empty');$('subTxt').textContent='Subtitles lama helin';
+},1500);
+}
+async function tryDirect(vid){
+var r=await fetch('https://www.youtube.com/watch?v='+vid);var h=await r.text();
+var km=h.match(/"INNERTUBE_API_KEY":"([^"]+)"/);if(!km)throw new Error('No key');
+var pr=await fetch('https://www.youtube.com/youtubei/v1/player?key='+km[1],{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context:{client:{clientName:'ANDROID',clientVersion:'20.10.38'}},videoId:vid})});
+var d=await pr.json();var tracks=d&&d.captions&&d.captions.playerCaptionsTracklistRenderer&&d.captions.playerCaptionsTracklistRenderer.captionTracks;
+if(!tracks||!tracks.length){var cm=h.match(/"captionTracks":(\[[^\]]+\])/);if(cm)tracks=JSON.parse(cm[1]);}
+if(!tracks||!tracks.length)throw new Error('No tracks');
+var t=pickTr(tracks);if(!t)throw new Error('No track');
+var url=t.baseUrl.replace(/&fmt=\w+$/,'');var xr=await fetch(url);return parseXml(await xr.text());
+}
+function pickTr(tracks){
+if(!tracks||!tracks.length)return null;
+var t=tracks.find(function(x){return x.languageCode==='so';});if(t)return t;
+t=tracks.find(function(x){return x.languageCode==='en'&&x.kind!=='asr';});if(t)return t;
+t=tracks.find(function(x){return x.languageCode==='en';});if(t)return t;
+var lat=['fr','de','es','it','pt','nl','sv','tr','vi','id','ms','sw'];
+for(var i=0;i<lat.length;i++){t=tracks.find(function(x){return x.languageCode===lat[i];});if(t)return t;}
+var noL=['bn','zh','ja','ko','ar','hi','th','ta','te','kn','ml','gu','pa','mr','ur','fa','he','my','km','lo','si','ru','uk'];
+var safe=tracks.filter(function(x){return noL.indexOf(x.languageCode)===-1;});
+return safe.length>0?safe[0]:tracks[0];
+}
+function parseXml(xml){
+var res=[],re=/<text\s+start="([\d.]+)"(?:\s+dur="([\d.]+)")?[^>]*>([\s\S]*?)<\/text>/g,m;
+while((m=re.exec(xml))!==null){var st=parseFloat(m[1]),du=m[2]?parseFloat(m[2]):2,tx=m[3].replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'").replace(/&quot;/g,'"').trim();if(tx)res.push({startTime:st,endTime:st+du,somaliText:tx});}
+if(res.length===0){try{var jd=JSON.parse(xml);if(jd.events){for(var i=0;i<jd.events.length;i++){var ev=jd.events[i];if(ev.segs&&ev.segs.length>0){var txt=ev.segs.map(function(s){return s.utf8||'';}).join('').trim();if(txt&&txt!=='\n')res.push({startTime:(ev.tStartMs||0)/1000,endTime:((ev.tStartMs||0)+(ev.dDurationMs||2000))/1000,somaliText:txt.replace(/\n/g,' ').trim()});}}}}catch(je){}}
+return res;
+}
+function gotSubs(s,lang){
+subs=s;$('vidLd').classList.add('hidden');
+var ln=lang||'English';
+$('vMeta').textContent=voice+' · '+s.length+' jumladood ('+ln+') · Credit: 0';
+renderSubs();toast('✅ '+s.length+' jumladood diyaar! ('+ln+')');
+}
+function startSync(){if(subInt)return;lastIdx=-1;subInt=setInterval(tick,250);}
+function stopSync(){if(subInt){clearInterval(subInt);subInt=null;}}
+function tick(){
+if(!ytP||!ytP.getCurrentTime)return;var t;try{t=ytP.getCurrentTime();}catch(e){return;}
+var idx=-1;for(var i=0;i<subs.length;i++){if(t>=subs[i].startTime&&t<subs[i].endTime){idx=i;break;}}
+if(idx!==lastIdx){lastIdx=idx;
+if(idx>=0&&subVis){$('subBar').classList.remove('empty');$('subTxt').textContent=subs[idx].somaliText;}
+else{$('subBar').classList.add('empty');$('subTxt').textContent=subVis?'...':'Subtitles-ka waa la damiyay';}
+hlSub(idx);}
+}
+function hlSub(idx){var its=document.querySelectorAll('.sub-it');for(var i=0;i<its.length;i++)its[i].classList.toggle('act',i===idx);if(idx>=0&&its[idx])its[idx].scrollIntoView({behavior:'smooth',block:'nearest'});}
+function renderSubs(){
+var l=$('sList');if(!subs.length){l.innerHTML='<div class="subs-empty">Subtitles lama helin.</div>';return;}
+var h='';for(var i=0;i<subs.length;i++){var s=subs[i],mn=Math.floor(s.startTime/60),sc=Math.floor(s.startTime%60);h+='<div class="sub-it" data-i="'+i+'"><span class="sub-tm">'+mn+':'+(sc<10?'0':'')+sc+'</span><span class="sub-tx">'+esc(s.somaliText)+'</span></div>';}
+l.innerHTML=h;var its=l.querySelectorAll('.sub-it');for(var j=0;j<its.length;j++)its[j].addEventListener('click',function(){seekTo(parseInt(this.dataset.i));});
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function seekTo(i){if(!subs[i])return;if(ytP&&ytP.seekTo){ytP.seekTo(subs[i].startTime,true);if(pState!==1)ytP.playVideo();}else toast('⏱ '+subs[i].somaliText.substring(0,50));}
+$('backBtn').addEventListener('click',function(){
+stopSync();if(ytP&&ytP.destroy){try{ytP.destroy();}catch(e){}}ytP=null;lastIdx=-1;subs=[];
+var f=$('vidCont').querySelector('iframe');if(f)f.remove();
+$('vidPh').style.display='flex';$('vidLd').classList.add('hidden');$('openYtBtn').style.display='none';
+$('pgPlayer').classList.remove('active');$('pgHome').classList.add('active');$('bNav').style.display='flex';
+$('subBar').classList.add('empty');$('subTxt').textContent='Subtitles-ka halkan ayay ka muuqan doonaan';
+});
+$('spD').addEventListener('click',function(){if(spIdx>0)spIdx--;spVal=spds[spIdx];$('spV').textContent=spVal+'×';if(ytP&&ytP.setPlaybackRate)ytP.setPlaybackRate(spVal);});
+$('spU').addEventListener('click',function(){if(spIdx<spds.length-1)spIdx++;spVal=spds[spIdx];$('spV').textContent=spVal+'×';if(ytP&&ytP.setPlaybackRate)ytP.setPlaybackRate(spVal);});
+$('fsBtn').addEventListener('click',function(){var v=$('vidCont');if(v.requestFullscreen)v.requestFullscreen();else if(v.webkitRequestFullscreen)v.webkitRequestFullscreen();else toast('📺 Shaashad buuxda');});
+window.togSubs=function(){subVis=!subVis;$('sTog').classList.toggle('on',subVis);$('subsSec').style.display=subVis?'block':'none';if(!subVis){$('subBar').classList.add('empty');$('subTxt').textContent='Subtitles-ka waa la damiyay';}};
+window.pickPV=function(el,n){document.querySelectorAll('.pv-item').forEach(function(x){x.classList.remove('sel');});el.classList.add('sel');voice=n;$('pvN').textContent=n;$('vMeta').textContent=n+' · '+subs.length+' jumladood · Credit: 0';toast('🎤 '+n);};
+window.doShare=function(){if(navigator.share&&curVid)navigator.share({title:'SomaliBix',url:'https://www.youtube.com/watch?v='+curVid}).catch(function(){});else toast('📋 youtube.com/watch?v='+curVid);};
+document.querySelectorAll('.voice-card').forEach(function(c){c.addEventListener('click',function(){document.querySelectorAll('.voice-card').forEach(function(x){x.classList.remove('sel');});this.classList.add('sel');voice=this.dataset.v;$('selB').textContent=voice+' selected';toast('🎤 '+voice);});});
+function addH(v){for(var i=0;i<hist.length;i++)if(hist[i].vid===v)return;hist.unshift({title:'YouTube — '+voice,voice:voice,date:new Date().toLocaleDateString(),vid:v,thumb:'https://img.youtube.com/vi/'+v+'/mqdefault.jpg'});rH();}
+function rH(){var b=$('eBox');$('hCnt').textContent=hist.length+' muuqaal';if(!hist.length){b.innerHTML='<div class="earlier-empty"><i class="fa-regular fa-circle-play"></i><p>Wali muuqaal ma jiro</p><small>Geli link</small></div>';return;}b.innerHTML=hist.map(function(h){return '<div class="e-card" data-v="'+h.vid+'"><div class="e-thumb"><img src="'+h.thumb+'" onerror="this.style.display=\'none\'"><div class="play-ico"><i class="fa-solid fa-play"></i></div><div class="e-badge">SO</div></div><div class="e-info"><p>'+h.title+'</p><small><i class="fa-solid fa-microphone"></i> '+h.voice+' • '+h.date+'</small></div></div>';}).join('');b.querySelectorAll('.e-card').forEach(function(c){c.addEventListener('click',function(){launch(this.dataset.v);});});}
+function toast(m){var t=$('tEl');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2800);}
+})();
+</script>
+</body>
+</html>
