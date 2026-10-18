@@ -1,7 +1,6 @@
 // =============================================
 // SomaliBix — YouTube Subtitles Serverless Function
-// Faylkan wuxuu ku socdaa Vercel Server-ka
-// CORS ma jiro — Server-to-Server request
+// Vercel Serverless Function
 // =============================================
 
 export default async function handler(req, res) {
@@ -11,15 +10,26 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET, OPTIONS');
+    return res.status(405).json({
+      success: false,
+      error: 'Method not allowed'
+    });
   }
 
   // ===== GET VIDEO ID =====
   const { videoId, lang } = req.query;
 
-  if (!videoId || typeof videoId !== 'string' || videoId.length !== 11) {
+  if (
+    !videoId ||
+    typeof videoId !== 'string' ||
+    !/^[a-zA-Z0-9_-]{11}$/.test(videoId)
+  ) {
     return res.status(400).json({
       success: false,
       error: 'videoId waa inuu ahaadaa 11 xaraf (YouTube Video ID)'
@@ -29,16 +39,17 @@ export default async function handler(req, res) {
   try {
 
     // =============================================
-    // TALLAABO 1: Ka soo qaado YouTube page-ka
-    // Si aan u helno INNERTUBE_API_KEY
+    // TALLAABO 1: Soo qaado YouTube page-ka
     // =============================================
     const pageResponse = await fetch(
-      'https://www.youtube.com/watch?v=' + videoId,
+      'https://www.youtube.com/watch?v=' + encodeURIComponent(videoId),
       {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+          'User-Agent':
+            'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
           'Accept-Language': 'en-US,en;q=0.9',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+          'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
         },
         redirect: 'follow'
       }
@@ -47,16 +58,21 @@ export default async function handler(req, res) {
     if (!pageResponse.ok) {
       return res.status(404).json({
         success: false,
-        error: 'YouTube page lama helin (Status: ' + pageResponse.status + ')'
+        error:
+          'YouTube page lama helin (Status: ' +
+          pageResponse.status +
+          ')'
       });
     }
 
     const html = await pageResponse.text();
 
     // =============================================
-    // TALLAABO 2: Ka soo saar INNERTUBE_API_KEY
+    // TALLAABO 2: Soo saar INNERTUBE_API_KEY
     // =============================================
-    const apiKeyMatch = html.match(/"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"/);
+    const apiKeyMatch = html.match(
+      /"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"/
+    );
 
     if (!apiKeyMatch || !apiKeyMatch[1]) {
       return res.status(500).json({
@@ -69,15 +85,16 @@ export default async function handler(req, res) {
 
     // =============================================
     // TALLAABO 3: Wac YouTube Innertube Player API
-    // Android client ahaan (si captions loo helo)
     // =============================================
     const playerResponse = await fetch(
-      'https://www.youtube.com/youtubei/v1/player?key=' + apiKey,
+      'https://www.youtube.com/youtubei/v1/player?key=' +
+        encodeURIComponent(apiKey),
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 13; en_US) gzip',
+          'User-Agent':
+            'com.google.android.youtube/20.10.38 (Linux; U; Android 13; en_US) gzip',
           'X-YouTube-Client-Name': '3',
           'X-YouTube-Client-Version': '20.10.38'
         },
@@ -88,7 +105,8 @@ export default async function handler(req, res) {
               clientVersion: '20.10.38',
               hl: 'en',
               gl: 'US',
-              userAgent: 'com.google.android.youtube/20.10.38 (Linux; U; Android 13; en_US) gzip'
+              userAgent:
+                'com.google.android.youtube/20.10.38 (Linux; U; Android 13; en_US) gzip'
             }
           },
           videoId: videoId,
@@ -104,44 +122,65 @@ export default async function handler(req, res) {
     if (!playerResponse.ok) {
       return res.status(500).json({
         success: false,
-        error: 'Innertube API failed (Status: ' + playerResponse.status + ')'
+        error:
+          'Innertube API failed (Status: ' +
+          playerResponse.status +
+          ')'
       });
     }
 
     const playerData = await playerResponse.json();
 
-    // Check for YouTube errors
-    if (playerData.playabilityStatus && playerData.playabilityStatus.status !== 'OK') {
+    if (
+      playerData.playabilityStatus &&
+      playerData.playabilityStatus.status !== 'OK'
+    ) {
       return res.status(403).json({
         success: false,
-        error: 'YouTube: ' + (playerData.playabilityStatus.reason || 'Video not available')
+        error:
+          'YouTube: ' +
+          (playerData.playabilityStatus.reason ||
+            'Video not available')
       });
     }
 
     // =============================================
-    // TALLAABO 4: Ka hel Caption Tracks
+    // TALLAABO 4: Soo hel Caption Tracks
     // =============================================
-    let captionTracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    let captionTracks =
+      playerData?.captions
+        ?.playerCaptionsTracklistRenderer
+        ?.captionTracks;
 
-    // Fallback: ka raadi HTML-ga
+    // Fallback 1: ka raadi HTML-ga
     if (!captionTracks || captionTracks.length === 0) {
-      const htmlCaptionMatch = html.match(/"captionTracks"\s*:\s*(\[[^\]]+\])/);
+      const htmlCaptionMatch = html.match(
+        /"captionTracks"\s*:\s*(\[[^\]]+\])/
+      );
+
       if (htmlCaptionMatch) {
         try {
           captionTracks = JSON.parse(htmlCaptionMatch[1]);
         } catch (parseErr) {
-          // Continue without tracks
+          // Sii wad fallback-ka xiga
         }
       }
     }
 
-    // Fallback 2: ka raadi ytInitialPlayerResponse
+    // Fallback 2: ytInitialPlayerResponse
     if (!captionTracks || captionTracks.length === 0) {
-      const initMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});/);
+      const initMatch = html.match(
+        /ytInitialPlayerResponse\s*=\s*(\{.+?\});/
+      );
+
       if (initMatch) {
         try {
           const initData = JSON.parse(initMatch[1]);
-          captionTracks = initData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+
+          captionTracks =
+            initData?.captions
+              ?.playerCaptionsTracklistRenderer
+              ?.captionTracks;
         } catch (parseErr) {
           // Continue
         }
@@ -158,34 +197,38 @@ export default async function handler(req, res) {
     }
 
     // =============================================
-    // TALLAABO 5: Doorashada Luuqadda Saxda Ah
-    // Priority: so → en (manual) → en (auto) → Latin → safe
-    // Marna ha dooran: Bengali, Chinese, Arabic, Hindi...
+    // TALLAABO 5: Doorashada luuqadda
     // =============================================
-    const selectedTrack = selectBestTrack(captionTracks, lang || 'en');
+    const selectedTrack = selectBestTrack(
+      captionTracks,
+      lang || 'en'
+    );
 
     if (!selectedTrack) {
       return res.status(404).json({
         success: false,
         error: 'Luuqad ku habboon lama helin',
         availableLanguages: captionTracks.map(function(t) {
-          return { code: t.languageCode, name: t.name?.simpleText || t.languageCode };
+          return {
+            code: t.languageCode,
+            name: t.name?.simpleText || t.languageCode
+          };
         })
       });
     }
 
     // =============================================
-    // TALLAABO 6: Soo qaado Captions XML-ka
+    // TALLAABO 6: Soo qaado Captions XML
     // =============================================
     let captionUrl = selectedTrack.baseUrl;
 
-    // Remove format parameter to get clean XML
     captionUrl = captionUrl.replace(/&fmt=\w+/g, '');
     captionUrl = captionUrl.replace(/\?fmt=\w+&?/, '?');
 
     const captionResponse = await fetch(captionUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        'User-Agent':
+          'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
         'Accept': 'text/xml,application/xml,*/*'
       }
     });
@@ -193,37 +236,48 @@ export default async function handler(req, res) {
     if (!captionResponse.ok) {
       return res.status(500).json({
         success: false,
-        error: 'Captions XML lama soo dejin karo (Status: ' + captionResponse.status + ')'
+        error:
+          'Captions XML lama soo dejin karo (Status: ' +
+          captionResponse.status +
+          ')'
       });
     }
 
     const xmlText = await captionResponse.text();
 
     // =============================================
-    // TALLAABO 7: Parse XML → JSON Array
+    // TALLAABO 7: Parse XML → Isku dar jumlado
     // =============================================
     const rawCaptions = parseCaptionsXml(xmlText);
-    const captions = mergeCaptions(rawCaptions);
 
-    if (captions.length === 0) {
+    if (rawCaptions.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Captions XML waa la helay laakiin wax content ah ma jiro',
+        error:
+          'Captions XML waa la helay laakiin wax content ah ma jiro',
         language: selectedTrack.languageCode
       });
     }
 
+    const captions = mergeCaptions(rawCaptions);
+
     // =============================================
-    // TALLAABO 8: Dib u celi Result-ga
+    // TALLAABO 8: Soo celi natiijada
     // =============================================
     return res.status(200).json({
       success: true,
       videoId: videoId,
       language: selectedTrack.languageCode,
-      languageName: selectedTrack.name?.simpleText || selectedTrack.languageCode,
+      languageName:
+        selectedTrack.name?.simpleText ||
+        selectedTrack.languageCode,
       isAutoGenerated: selectedTrack.kind === 'asr',
       totalCaptions: captions.length,
-      duration: captions.length > 0 ? captions[captions.length - 1].endTime : 0,
+      originalCaptionCount: rawCaptions.length,
+      duration:
+        captions.length > 0
+          ? captions[captions.length - 1].endTime
+          : 0,
       captions: captions,
       allAvailableLanguages: captionTracks.map(function(t) {
         return {
@@ -236,9 +290,12 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('SomaliBix Subtitle Error:', error);
+
     return res.status(500).json({
       success: false,
-      error: 'Server error: ' + (error.message || 'Unknown error'),
+      error:
+        'Server error: ' +
+        (error.message || 'Unknown error'),
       videoId: videoId
     });
   }
@@ -251,41 +308,58 @@ export default async function handler(req, res) {
 function selectBestTrack(tracks, preferredLang) {
   if (!tracks || tracks.length === 0) return null;
 
-  // Priority 1: Af-Soomaali (so)
-  var somali = tracks.find(function(t) { return t.languageCode === 'so'; });
+  // Priority 1: Af-Soomaali
+  const somali = tracks.find(function(t) {
+    return t.languageCode === 'so';
+  });
+
   if (somali) return somali;
 
-  // Priority 2: Luuqadda la rabay (haddii aan ahayn 'en')
-  if (preferredLang && preferredLang !== 'en' && preferredLang !== 'so') {
-    var pref = tracks.find(function(t) { return t.languageCode === preferredLang; });
+  // Priority 2: Luuqadda la codsaday
+  if (
+    preferredLang &&
+    preferredLang !== 'en' &&
+    preferredLang !== 'so'
+  ) {
+    const pref = tracks.find(function(t) {
+      return t.languageCode === preferredLang;
+    });
+
     if (pref) return pref;
   }
 
-  // Priority 3: English manual (aan ahayn auto-generated)
-  var enManual = tracks.find(function(t) {
+  // Priority 3: English manual
+  const enManual = tracks.find(function(t) {
     return t.languageCode === 'en' && t.kind !== 'asr';
   });
+
   if (enManual) return enManual;
 
   // Priority 4: English auto-generated
-  var enAuto = tracks.find(function(t) { return t.languageCode === 'en'; });
+  const enAuto = tracks.find(function(t) {
+    return t.languageCode === 'en';
+  });
+
   if (enAuto) return enAuto;
 
-  // Priority 5: Luuqadaha Latin-based (la aqrin karo)
-  var latinCodes = [
+  // Priority 5: Luuqadaha Latin-based
+  const latinCodes = [
     'fr', 'de', 'es', 'it', 'pt', 'nl', 'sv', 'da', 'no', 'fi',
     'pl', 'cs', 'ro', 'hu', 'tr', 'vi', 'id', 'ms', 'tl', 'sw',
     'ha', 'yo', 'ig', 'am', 'om', 'et', 'rw', 'ny', 'sn', 'zu',
     'xh', 'st', 'tn', 'ts', 've', 'nr', 'ss', 'lg', 'ak', 'tw'
   ];
 
-  for (var i = 0; i < latinCodes.length; i++) {
-    var latTrack = tracks.find(function(t) { return t.languageCode === latinCodes[i]; });
+  for (let i = 0; i < latinCodes.length; i++) {
+    const latTrack = tracks.find(function(t) {
+      return t.languageCode === latinCodes[i];
+    });
+
     if (latTrack) return latTrack;
   }
 
-  // Priority 6: Filter OUT non-Latin scripts
-  var nonLatinCodes = [
+  // Priority 6: Ka fogow scripts aan Latin ahayn
+  const nonLatinCodes = [
     'bn', 'zh', 'ja', 'ko', 'ar', 'hi', 'th', 'ta', 'te', 'kn',
     'ml', 'gu', 'pa', 'mr', 'ur', 'fa', 'he', 'my', 'km', 'lo',
     'si', 'ne', 'sd', 'ps', 'ug', 'yi', 'hy', 'ka', 'mk', 'bg',
@@ -294,13 +368,12 @@ function selectBestTrack(tracks, preferredLang) {
     'raj', 'mag', 'sat', 'doi', 'kok', 'mni', 'bod', 'sin'
   ];
 
-  var safeTracks = tracks.filter(function(t) {
+  const safeTracks = tracks.filter(function(t) {
     return nonLatinCodes.indexOf(t.languageCode) === -1;
   });
 
   if (safeTracks.length > 0) return safeTracks[0];
 
-  // Last resort: track-kii ugu horreeyay
   return tracks[0];
 }
 
@@ -309,133 +382,207 @@ function selectBestTrack(tracks, preferredLang) {
 // FUNCTION: Parse YouTube Captions XML → Array
 // =============================================
 function parseCaptionsXml(xml) {
-  var results = [];
+  const results = [];
 
   if (!xml || typeof xml !== 'string') return results;
 
   // YouTube XML format:
   // <text start="0.5" dur="2.3">Hello world</text>
-  // <text start="2.8" dur="1.5" t="1">Next line</text>
 
-  var regex = /<text\s+start="([\d.]+)"(?:\s+dur="([\d.]+)")?(?:\s+[^>]*)?>([\s\S]*?)<\/text>/gi;
-  var match;
+  const regex =
+    /<text\b[^>]*\bstart="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/gi;
+
+  let match;
 
   while ((match = regex.exec(xml)) !== null) {
-    var startTime = parseFloat(match[1]);
-    var duration = match[2] ? parseFloat(match[2]) : 2.0;
-    var rawText = match[3];
+    const startTime = parseFloat(match[1]);
+    const tag = match[0];
 
-    // Clean HTML entities and tags
-    var cleanText = rawText
-      .replace(/<[^>]+>/g, '')           // Remove HTML tags
-      .replace(/&amp;/g, '&')            // &amp; → &
-      .replace(/&lt;/g, '<')             // &lt; → <
-      .replace(/&gt;/g, '>')             // &gt; → >
-      .replace(/&#39;/g, "'")            // &#39; → '
-      .replace(/&apos;/g, "'")           // &apos; → '
-      .replace(/&quot;/g, '"')           // &quot; → "
-      .replace(/&#(\d+);/g, function(m, num) {  // Numeric entities
-        return String.fromCharCode(parseInt(num));
-      })
-      .replace(/&nbsp;/g, ' ')           // &nbsp; → space
-      .replace(/\n/g, ' ')               // Newlines → space
-      .replace(/\r/g, '')                // Remove carriage returns
-      .replace(/\s+/g, ' ')              // Multiple spaces → single
+    const durationMatch = tag.match(/\bdur="([\d.]+)"/);
+    const duration = durationMatch
+      ? parseFloat(durationMatch[1])
+      : 2.0;
+
+    const rawText = match[2];
+
+    const cleanText = decodeEntities(
+      rawText
+        .replace(/<[^>]+>/g, '')
+        .replace(/\n/g, ' ')
+        .replace(/\r/g, '')
+    )
+      .replace(/\s+/g, ' ')
       .trim();
 
-    // Skip empty captions
-    if (cleanText.length > 0) {
+    if (
+      cleanText.length > 0 &&
+      Number.isFinite(startTime) &&
+      Number.isFinite(duration)
+    ) {
       results.push({
         startTime: Math.round(startTime * 1000) / 1000,
-        endTime: Math.round((startTime + duration) * 1000) / 1000,
+        endTime:
+          Math.round((startTime + duration) * 1000) / 1000,
         text: cleanText
       });
     }
   }
 
-  // If regex didn't match, try alternative format (JSON3 or srv3)
+  // Fallback: YouTube JSON3 format
   if (results.length === 0) {
-    // Try parsing as JSON (sometimes YouTube returns JSON)
     try {
-      var jsonData = JSON.parse(xml);
-      if (jsonData.events) {
-        for (var i = 0; i < jsonData.events.length; i++) {
-          var evt = jsonData.events[i];
+      const jsonData = JSON.parse(xml);
+
+      if (Array.isArray(jsonData.events)) {
+        for (const evt of jsonData.events) {
           if (evt.segs && evt.segs.length > 0) {
-            var text = evt.segs.map(function(s) { return s.utf8 || ''; }).join('').trim();
+            const text = evt.segs
+              .map(function(s) {
+                return s.utf8 || '';
+              })
+              .join('')
+              .replace(/\s+/g, ' ')
+              .trim();
+
             if (text && text !== '\n') {
               results.push({
                 startTime: (evt.tStartMs || 0) / 1000,
-                endTime: ((evt.tStartMs || 0) + (evt.dDurationMs || 2000)) / 1000,
-                text: text.replace(/\n/g, ' ').trim()
+                endTime:
+                  ((evt.tStartMs || 0) +
+                    (evt.dDurationMs || 2000)) /
+                  1000,
+                text: text
               });
             }
           }
         }
       }
     } catch (jsonErr) {
-      // Not JSON, ignore
+      // Ma aha JSON sax ah
     }
   }
 
-  return results;
+  return results.sort(function(a, b) {
+    return a.startTime - b.startTime;
+  });
+}
+
+
+// =============================================
+// FUNCTION: Decode HTML/XML Entities
+// =============================================
+function decodeEntities(text) {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, function(match, hex) {
+      return String.fromCodePoint(parseInt(hex, 16));
+    })
+    .replace(/&#(\d+);/g, function(match, num) {
+      return String.fromCodePoint(parseInt(num, 10));
+    })
+    .replace(/&nbsp;/g, ' ');
+}
+
+
+// =============================================
+// FUNCTION: Isku dar captions-ka → jumlado
+// =============================================
+function mergeCaptions(caps) {
+  if (!Array.isArray(caps) || caps.length === 0) {
+    return [];
+  }
+
+  const output = [];
+  let current = null;
+
+  // Xaddidaad si aan captions-ku aad u dheeraan
+  const MAX_LENGTH = 180;
+  const MAX_DURATION = 12;
+
+  function flush() {
+    if (current && current.text.trim()) {
+      current.text = current.text.trim();
+      output.push(current);
+    }
+
+    current = null;
+  }
+
+  for (const caption of caps) {
+    const text = (caption.text || '').trim();
+
+    if (!text) continue;
+
+    if (!current) {
+      current = {
+        startTime: caption.startTime,
+        endTime: caption.endTime,
+        text: text
+      };
+    } else {
+      current.text += ' ' + text;
+      current.endTime = Math.max(
+        current.endTime,
+        caption.endTime
+      );
+    }
+
+    const sentence = current.text.trim();
+    const duration = current.endTime - current.startTime;
+
+    // Jooji marka jumladdu dhammaato.
+    // Ha u qaadan Mr. ama Dr. inay yihiin dhammaad jumlad.
+    const endsSentence = /[!?]["')\]]?$/.test(sentence) ||
+      (/\.$/.test(sentence) && !/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|vs|etc)\.$/i.test(sentence));
+
+    // Hakadyo macquul ah oo jumlad dheer kala qaybiya
+    const endsClause =
+      /[,;:]$/.test(sentence) && sentence.length >= 100;
+
+    // Xaddidaadaha badbaadada
+    const tooLong = sentence.length >= MAX_LENGTH;
+    const tooLongDuration = duration >= MAX_DURATION;
+
+    if (
+      endsSentence ||
+      endsClause ||
+      tooLong ||
+      tooLongDuration
+    ) {
+      flush();
+    }
+  }
+
+  flush();
+
+  return output;
 }
 
 
 // =============================================
 // FUNCTION: Extract Signature Timestamp
-// (Helps with video playback authorization)
 // =============================================
 function extractSignatureTimestamp(html) {
   if (!html) return undefined;
 
-  // Try multiple patterns
-  var patterns = [
+  const patterns = [
     /signatureTimestamp["']?\s*[:=]\s*(\d+)/,
     /sts["']?\s*[:=]\s*(\d+)/,
     /"sts"\s*:\s*(\d+)/
   ];
 
-  for (var i = 0; i < patterns.length; i++) {
-    var match = html.match(patterns[i]);
+  for (let i = 0; i < patterns.length; i++) {
+    const match = html.match(patterns[i]);
+
     if (match && match[1]) {
-      return parseInt(match[1]);
+      return parseInt(match[1], 10);
     }
   }
 
   return undefined;
-      }
-      // =============================================
-// FUNCTION: Isku dar jajabyada captions → jumlado
-// =============================================
-function mergeCaptions(caps) {
-  if (!caps || caps.length === 0) return caps;
-  var out = [];
-  var cur = null;
-
-  function flush() {
-    if (cur) { out.push(cur); cur = null; }
-  }
-
-  for (var i = 0; i < caps.length; i++) {
-    var c = caps[i];
-    if (!cur) {
-      cur = { startTime: c.startTime, endTime: c.endTime, text: c.text };
-    } else {
-      cur.text = cur.text + ' ' + c.text;
-      cur.endTime = c.endTime;
-    }
-
-    var t = cur.text;
-    var len = t.length;
-    var dur = cur.endTime - cur.startTime;
-    var endsSentence = /[.?!]["')\]]?$/.test(t);
-    var endsClause = /[,;:]$/.test(t) && len >= 60;
-
-    if (endsSentence || endsClause || len >= 120 || dur >= 8) {
-      flush();
-    }
-  }
-  flush();
-  return out;
-  }
+}
