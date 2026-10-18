@@ -1,18 +1,55 @@
+// =============================================
+// SomaliBix — YouTube Subtitles Serverless Function
+// Faylkan wuxuu ku socdaa Vercel Server-ka
+// =============================================
 
-          'YouTube page lama helin (Status: ' +
-          pageResponse.status +
-          ')'
+export default async function handler(req, res) {
+
+  // ===== CORS HEADERS =====
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  // ===== GET VIDEO ID =====
+  const { videoId, lang } = req.query;
+
+  if (!videoId || typeof videoId !== 'string' || videoId.length !== 11) {
+    return res.status(400).json({
+      success: false,
+      error: 'videoId waa inuu ahaadaa 11 xaraf (YouTube Video ID)'
+    });
+  }
+
+  try {
+
+    // TALLAABO 1: YouTube page
+    const pageResponse = await fetch(
+      'https://www.youtube.com/watch?v=' + videoId,
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+        },
+        redirect: 'follow'
+      }
+    );
+
+    if (!pageResponse.ok) {
+      return res.status(404).json({
+        success: false,
+        error: 'YouTube page lama helin (Status: ' + pageResponse.status + ')'
       });
     }
 
     const html = await pageResponse.text();
 
-    // =============================================
-    // TALLAABO 2: Soo saar INNERTUBE_API_KEY
-    // =============================================
-    const apiKeyMatch = html.match(
-      /"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"/
-    );
+    // TALLAABO 2: INNERTUBE_API_KEY
+    const apiKeyMatch = html.match(/"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"/);
 
     if (!apiKeyMatch || !apiKeyMatch[1]) {
       return res.status(500).json({
@@ -23,18 +60,14 @@
 
     const apiKey = apiKeyMatch[1];
 
-    // =============================================
-    // TALLAABO 3: Wac YouTube Innertube Player API
-    // =============================================
+    // TALLAABO 3: Innertube Player API (Android client)
     const playerResponse = await fetch(
-      'https://www.youtube.com/youtubei/v1/player?key=' +
-        encodeURIComponent(apiKey),
+      'https://www.youtube.com/youtubei/v1/player?key=' + apiKey,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent':
-            'com.google.android.youtube/20.10.38 (Linux; U; Android 13; en_US) gzip',
+          'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 13; en_US) gzip',
           'X-YouTube-Client-Name': '3',
           'X-YouTube-Client-Version': '20.10.38'
         },
@@ -45,8 +78,7 @@
               clientVersion: '20.10.38',
               hl: 'en',
               gl: 'US',
-              userAgent:
-                'com.google.android.youtube/20.10.38 (Linux; U; Android 13; en_US) gzip'
+              userAgent: 'com.google.android.youtube/20.10.38 (Linux; U; Android 13; en_US) gzip'
             }
           },
           videoId: videoId,
@@ -62,68 +94,38 @@
     if (!playerResponse.ok) {
       return res.status(500).json({
         success: false,
-        error:
-          'Innertube API failed (Status: ' +
-          playerResponse.status +
-          ')'
+        error: 'Innertube API failed (Status: ' + playerResponse.status + ')'
       });
     }
 
     const playerData = await playerResponse.json();
 
-    if (
-      playerData.playabilityStatus &&
-      playerData.playabilityStatus.status !== 'OK'
-    ) {
+    if (playerData.playabilityStatus && playerData.playabilityStatus.status !== 'OK') {
       return res.status(403).json({
         success: false,
-        error:
-          'YouTube: ' +
-          (playerData.playabilityStatus.reason ||
-            'Video not available')
+        error: 'YouTube: ' + (playerData.playabilityStatus.reason || 'Video not available')
       });
     }
 
-    // =============================================
-    // TALLAABO 4: Soo hel Caption Tracks
-    // =============================================
-    let captionTracks =
-      playerData?.captions
-        ?.playerCaptionsTracklistRenderer
-        ?.captionTracks;
+    // TALLAABO 4: Caption Tracks
+    let captionTracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
 
-    // Fallback 1: ka raadi HTML-ga
     if (!captionTracks || captionTracks.length === 0) {
-      const htmlCaptionMatch = html.match(
-        /"captionTracks"\s*:\s*(\[[^\]]+\])/
-      );
-
+      const htmlCaptionMatch = html.match(/"captionTracks"\s*:\s*(\[[^\]]+\])/);
       if (htmlCaptionMatch) {
         try {
           captionTracks = JSON.parse(htmlCaptionMatch[1]);
-        } catch (parseErr) {
-          // Sii wad fallback-ka xiga
-        }
+        } catch (parseErr) {}
       }
     }
 
-    // Fallback 2: ytInitialPlayerResponse
     if (!captionTracks || captionTracks.length === 0) {
-      const initMatch = html.match(
-        /ytInitialPlayerResponse\s*=\s*(\{.+?\});/
-      );
-
+      const initMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});/);
       if (initMatch) {
         try {
           const initData = JSON.parse(initMatch[1]);
-
-          captionTracks =
-            initData?.captions
-              ?.playerCaptionsTracklistRenderer
-              ?.captionTracks;
-        } catch (parseErr) {
-          // Continue
-        }
+          captionTracks = initData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        } catch (parseErr) {}
       }
     }
 
@@ -136,39 +138,27 @@
       });
     }
 
-    // =============================================
-    // TALLAABO 5: Doorashada luuqadda
-    // =============================================
-    const selectedTrack = selectBestTrack(
-      captionTracks,
-      lang || 'en'
-    );
+    // TALLAABO 5: Dooro luuqadda
+    const selectedTrack = selectBestTrack(captionTracks, lang || 'en');
 
     if (!selectedTrack) {
       return res.status(404).json({
         success: false,
         error: 'Luuqad ku habboon lama helin',
         availableLanguages: captionTracks.map(function(t) {
-          return {
-            code: t.languageCode,
-            name: t.name?.simpleText || t.languageCode
-          };
+          return { code: t.languageCode, name: t.name?.simpleText || t.languageCode };
         })
       });
     }
 
-    // =============================================
-    // TALLAABO 6: Soo qaado Captions XML
-    // =============================================
+    // TALLAABO 6: Captions XML
     let captionUrl = selectedTrack.baseUrl;
-
     captionUrl = captionUrl.replace(/&fmt=\w+/g, '');
     captionUrl = captionUrl.replace(/\?fmt=\w+&?/, '?');
 
     const captionResponse = await fetch(captionUrl, {
       headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
         'Accept': 'text/xml,application/xml,*/*'
       }
     });
@@ -176,48 +166,34 @@
     if (!captionResponse.ok) {
       return res.status(500).json({
         success: false,
-        error:
-          'Captions XML lama soo dejin karo (Status: ' +
-          captionResponse.status +
-          ')'
+        error: 'Captions XML lama soo dejin karo (Status: ' + captionResponse.status + ')'
       });
     }
 
     const xmlText = await captionResponse.text();
 
-    // =============================================
-    // TALLAABO 7: Parse XML → Isku dar jumlado
-    // =============================================
+    // TALLAABO 7: Parse + isku dar jumlado
     const rawCaptions = parseCaptionsXml(xmlText);
+    const captions = mergeCaptions(rawCaptions);
 
-    if (rawCaptions.length === 0) {
+    if (captions.length === 0) {
       return res.status(404).json({
         success: false,
-        error:
-          'Captions XML waa la helay laakiin wax content ah ma jiro',
+        error: 'Captions XML waa la helay laakiin wax content ah ma jiro',
         language: selectedTrack.languageCode
       });
     }
 
-    const captions = mergeCaptions(rawCaptions);
-
-    // =============================================
-    // TALLAABO 8: Soo celi natiijada
-    // =============================================
+    // TALLAABO 8: Natiijada
     return res.status(200).json({
       success: true,
       videoId: videoId,
       language: selectedTrack.languageCode,
-      languageName:
-        selectedTrack.name?.simpleText ||
-        selectedTrack.languageCode,
+      languageName: selectedTrack.name?.simpleText || selectedTrack.languageCode,
       isAutoGenerated: selectedTrack.kind === 'asr',
+      totalRawCaptions: rawCaptions.length,
       totalCaptions: captions.length,
-      originalCaptionCount: rawCaptions.length,
-      duration:
-        captions.length > 0
-          ? captions[captions.length - 1].endTime
-          : 0,
+      duration: captions.length > 0 ? captions[captions.length - 1].endTime : 0,
       captions: captions,
       allAvailableLanguages: captionTracks.map(function(t) {
         return {
@@ -230,12 +206,9 @@
 
   } catch (error) {
     console.error('SomaliBix Subtitle Error:', error);
-
     return res.status(500).json({
       success: false,
-      error:
-        'Server error: ' +
-        (error.message || 'Unknown error'),
+      error: 'Server error: ' + (error.message || 'Unknown error'),
       videoId: videoId
     });
   }
@@ -243,63 +216,40 @@
 
 
 // =============================================
-// FUNCTION: Doorashada Track-ga Ugu Fiican
+// FUNCTION: Dooro Track-ga ugu fiican
 // =============================================
 function selectBestTrack(tracks, preferredLang) {
   if (!tracks || tracks.length === 0) return null;
 
-  // Priority 1: Af-Soomaali
-  const somali = tracks.find(function(t) {
-    return t.languageCode === 'so';
-  });
-
+  var somali = tracks.find(function(t) { return t.languageCode === 'so'; });
   if (somali) return somali;
 
-  // Priority 2: Luuqadda la codsaday
-  if (
-    preferredLang &&
-    preferredLang !== 'en' &&
-    preferredLang !== 'so'
-  ) {
-    const pref = tracks.find(function(t) {
-      return t.languageCode === preferredLang;
-    });
-
+  if (preferredLang && preferredLang !== 'en' && preferredLang !== 'so') {
+    var pref = tracks.find(function(t) { return t.languageCode === preferredLang; });
     if (pref) return pref;
   }
 
-  // Priority 3: English manual
-  const enManual = tracks.find(function(t) {
+  var enManual = tracks.find(function(t) {
     return t.languageCode === 'en' && t.kind !== 'asr';
   });
-
   if (enManual) return enManual;
 
-  // Priority 4: English auto-generated
-  const enAuto = tracks.find(function(t) {
-    return t.languageCode === 'en';
-  });
-
+  var enAuto = tracks.find(function(t) { return t.languageCode === 'en'; });
   if (enAuto) return enAuto;
 
-  // Priority 5: Luuqadaha Latin-based
-  const latinCodes = [
+  var latinCodes = [
     'fr', 'de', 'es', 'it', 'pt', 'nl', 'sv', 'da', 'no', 'fi',
     'pl', 'cs', 'ro', 'hu', 'tr', 'vi', 'id', 'ms', 'tl', 'sw',
     'ha', 'yo', 'ig', 'am', 'om', 'et', 'rw', 'ny', 'sn', 'zu',
     'xh', 'st', 'tn', 'ts', 've', 'nr', 'ss', 'lg', 'ak', 'tw'
   ];
 
-  for (let i = 0; i < latinCodes.length; i++) {
-    const latTrack = tracks.find(function(t) {
-      return t.languageCode === latinCodes[i];
-    });
-
+  for (var i = 0; i < latinCodes.length; i++) {
+    var latTrack = tracks.find(function(t) { return t.languageCode === latinCodes[i]; });
     if (latTrack) return latTrack;
   }
 
-  // Priority 6: Ka fogow scripts aan Latin ahayn
-  const nonLatinCodes = [
+  var nonLatinCodes = [
     'bn', 'zh', 'ja', 'ko', 'ar', 'hi', 'th', 'ta', 'te', 'kn',
     'ml', 'gu', 'pa', 'mr', 'ur', 'fa', 'he', 'my', 'km', 'lo',
     'si', 'ne', 'sd', 'ps', 'ug', 'yi', 'hy', 'ka', 'mk', 'bg',
@@ -308,7 +258,7 @@ function selectBestTrack(tracks, preferredLang) {
     'raj', 'mag', 'sat', 'doi', 'kok', 'mni', 'bod', 'sin'
   ];
 
-  const safeTracks = tracks.filter(function(t) {
+  var safeTracks = tracks.filter(function(t) {
     return nonLatinCodes.indexOf(t.languageCode) === -1;
   });
 
@@ -322,205 +272,121 @@ function selectBestTrack(tracks, preferredLang) {
 // FUNCTION: Parse YouTube Captions XML → Array
 // =============================================
 function parseCaptionsXml(xml) {
-  const results = [];
+  var results = [];
 
   if (!xml || typeof xml !== 'string') return results;
 
-  // YouTube XML format:
-  // <text start="0.5" dur="2.3">Hello world</text>
-
-  const regex =
-    /<text\b[^>]*\bstart="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/gi;
-
-  let match;
+  var regex = /<text\s+start="([\d.]+)"(?:\s+dur="([\d.]+)")?(?:\s+[^>]*)?>([\s\S]*?)<\/text>/gi;
+  var match;
 
   while ((match = regex.exec(xml)) !== null) {
-    const startTime = parseFloat(match[1]);
-    const tag = match[0];
+    var startTime = parseFloat(match[1]);
+    var duration = match[2] ? parseFloat(match[2]) : 2.0;
+    var rawText = match[3];
 
-    const durationMatch = tag.match(/\bdur="([\d.]+)"/);
-    const duration = durationMatch
-      ? parseFloat(durationMatch[1])
-      : 2.0;
-
-    const rawText = match[2];
-
-    const cleanText = decodeEntities(
-      rawText
-        .replace(/<[^>]+>/g, '')
-        .replace(/\n/g, ' ')
-        .replace(/\r/g, '')
-    )
+    var cleanText = rawText
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&#(\d+);/g, function(m, num) {
+        return String.fromCharCode(parseInt(num));
+      })
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\n/g, ' ')
+      .replace(/\r/g, '')
       .replace(/\s+/g, ' ')
       .trim();
 
-    if (
-      cleanText.length > 0 &&
-      Number.isFinite(startTime) &&
-      Number.isFinite(duration)
-    ) {
+    if (cleanText.length > 0) {
       results.push({
         startTime: Math.round(startTime * 1000) / 1000,
-        endTime:
-          Math.round((startTime + duration) * 1000) / 1000,
+        endTime: Math.round((startTime + duration) * 1000) / 1000,
         text: cleanText
       });
     }
   }
 
-  // Fallback: YouTube JSON3 format
   if (results.length === 0) {
     try {
-      const jsonData = JSON.parse(xml);
-
-      if (Array.isArray(jsonData.events)) {
-        for (const evt of jsonData.events) {
+      var jsonData = JSON.parse(xml);
+      if (jsonData.events) {
+        for (var i = 0; i < jsonData.events.length; i++) {
+          var evt = jsonData.events[i];
           if (evt.segs && evt.segs.length > 0) {
-            const text = evt.segs
-              .map(function(s) {
-                return s.utf8 || '';
-              })
-              .join('')
-              .replace(/\s+/g, ' ')
-              .trim();
-
+            var text = evt.segs.map(function(s) { return s.utf8 || ''; }).join('').trim();
             if (text && text !== '\n') {
               results.push({
                 startTime: (evt.tStartMs || 0) / 1000,
-                endTime:
-                  ((evt.tStartMs || 0) +
-                    (evt.dDurationMs || 2000)) /
-                  1000,
-                text: text
+                endTime: ((evt.tStartMs || 0) + (evt.dDurationMs || 2000)) / 1000,
+                text: text.replace(/\n/g, ' ').trim()
               });
             }
           }
         }
       }
-    } catch (jsonErr) {
-      // Ma aha JSON sax ah
-    }
+    } catch (jsonErr) {}
   }
 
-  return results.sort(function(a, b) {
-    return a.startTime - b.startTime;
-  });
+  return results;
 }
 
 
 // =============================================
-// FUNCTION: Decode HTML/XML Entities
-// =============================================
-function decodeEntities(text) {
-  return text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#39;/g, "'")
-    .replace(/&#x([0-9a-f]+);/gi, function(match, hex) {
-      return String.fromCodePoint(parseInt(hex, 16));
-    })
-    .replace(/&#(\d+);/g, function(match, num) {
-      return String.fromCodePoint(parseInt(num, 10));
-    })
-    .replace(/&nbsp;/g, ' ');
-}
-
-
-// =============================================
-// FUNCTION: Isku dar captions-ka → jumlado
+// FUNCTION: Isku dar jajabyada captions → jumlado
 // =============================================
 function mergeCaptions(caps) {
-  if (!Array.isArray(caps) || caps.length === 0) {
-    return [];
-  }
-
-  const output = [];
-  let current = null;
-
-  // Xaddidaad si aan captions-ku aad u dheeraan
-  const MAX_LENGTH = 180;
-  const MAX_DURATION = 12;
+  if (!caps || caps.length === 0) return caps;
+  var out = [];
+  var cur = null;
 
   function flush() {
-    if (current && current.text.trim()) {
-      current.text = current.text.trim();
-      output.push(current);
-    }
-
-    current = null;
+    if (cur) { out.push(cur); cur = null; }
   }
 
-  for (const caption of caps) {
-    const text = (caption.text || '').trim();
-
-    if (!text) continue;
-
-    if (!current) {
-      current = {
-        startTime: caption.startTime,
-        endTime: caption.endTime,
-        text: text
-      };
+  for (var i = 0; i < caps.length; i++) {
+    var c = caps[i];
+    if (!cur) {
+      cur = { startTime: c.startTime, endTime: c.endTime, text: c.text };
     } else {
-      current.text += ' ' + text;
-      current.endTime = Math.max(
-        current.endTime,
-        caption.endTime
-      );
+      cur.text = cur.text + ' ' + c.text;
+      cur.endTime = c.endTime;
     }
 
-    const sentence = current.text.trim();
-    const duration = current.endTime - current.startTime;
+    var t = cur.text;
+    var len = t.length;
+    var dur = cur.endTime - cur.startTime;
+    var endsSentence = /[.?!]["')\]]?$/.test(t);
+    var endsClause = /[,;:]$/.test(t) && len >= 60;
 
-    // Jooji marka jumladdu dhammaato.
-    // Ha u qaadan Mr. ama Dr. inay yihiin dhammaad jumlad.
-    const endsSentence = /[!?]["')\]]?$/.test(sentence) ||
-      (/\.$/.test(sentence) && !/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|vs|etc)\.$/i.test(sentence));
-
-    // Hakadyo macquul ah oo jumlad dheer kala qaybiya
-    const endsClause =
-      /[,;:]$/.test(sentence) && sentence.length >= 100;
-
-    // Xaddidaadaha badbaadada
-    const tooLong = sentence.length >= MAX_LENGTH;
-    const tooLongDuration = duration >= MAX_DURATION;
-
-    if (
-      endsSentence ||
-      endsClause ||
-      tooLong ||
-      tooLongDuration
-    ) {
+    if (endsSentence || endsClause || len >= 120 || dur >= 8) {
       flush();
     }
   }
-
   flush();
-
-  return output;
+  return out;
 }
 
 
 // =============================================
-// FUNCTION: Extract Signature Timestamp
+// FUNCTION: Signature Timestamp
 // =============================================
 function extractSignatureTimestamp(html) {
   if (!html) return undefined;
 
-  const patterns = [
+  var patterns = [
     /signatureTimestamp["']?\s*[:=]\s*(\d+)/,
     /sts["']?\s*[:=]\s*(\d+)/,
     /"sts"\s*:\s*(\d+)/
   ];
 
-  for (let i = 0; i < patterns.length; i++) {
-    const match = html.match(patterns[i]);
-
+  for (var i = 0; i < patterns.length; i++) {
+    var match = html.match(patterns[i]);
     if (match && match[1]) {
-      return parseInt(match[1], 10);
+      return parseInt(match[1]);
     }
   }
 
