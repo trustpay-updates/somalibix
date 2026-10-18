@@ -202,7 +202,8 @@ export default async function handler(req, res) {
     // =============================================
     // TALLAABO 7: Parse XML → JSON Array
     // =============================================
-    const captions = parseCaptionsXml(xmlText);
+    const rawCaptions = parseCaptionsXml(xmlText);
+    const captions = mergeCaptions(rawCaptions);
 
     if (captions.length === 0) {
       return res.status(404).json({
@@ -404,3 +405,37 @@ function extractSignatureTimestamp(html) {
 
   return undefined;
       }
+      // =============================================
+// FUNCTION: Isku dar jajabyada captions → jumlado
+// =============================================
+function mergeCaptions(caps) {
+  if (!caps || caps.length === 0) return caps;
+  var out = [];
+  var cur = null;
+
+  function flush() {
+    if (cur) { out.push(cur); cur = null; }
+  }
+
+  for (var i = 0; i < caps.length; i++) {
+    var c = caps[i];
+    if (!cur) {
+      cur = { startTime: c.startTime, endTime: c.endTime, text: c.text };
+    } else {
+      cur.text = cur.text + ' ' + c.text;
+      cur.endTime = c.endTime;
+    }
+
+    var t = cur.text;
+    var len = t.length;
+    var dur = cur.endTime - cur.startTime;
+    var endsSentence = /[.?!]["')\]]?$/.test(t);
+    var endsClause = /[,;:]$/.test(t) && len >= 60;
+
+    if (endsSentence || endsClause || len >= 120 || dur >= 8) {
+      flush();
+    }
+  }
+  flush();
+  return out;
+  }
