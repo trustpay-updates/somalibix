@@ -35,7 +35,8 @@ export default async function handler(req, res) {
     let last = -1;
     starts.forEach(function (x) {
       if (typeof x.s === 'number' && x.s > last && x.s < words.length && x.so) {
-        clean.push(x); last = x.s;
+        clean.push(x);
+        last = x.s;
       }
     });
     if (!clean.length) throw new Error('AI wax ma soo celin');
@@ -56,15 +57,22 @@ export default async function handler(req, res) {
 
 async function segmentChunk(key, words, from, to) {
   const lines = [];
-  for (let i = from; i < to; i++) lines.push(i + ':' + words[i].w);
+  for (let i = from; i < to; i++) {
+    lines.push(i + '|' + words[i].t.toFixed(1) + '|' + words[i].w);
+  }
 
   const prompt =
-    'Below are English words from a video transcript, each as index:word.\n' +
-    'Split them into natural spoken sentences/phrases, exactly where a speaker would pause or finish a thought ' +
-    '(usually 5-25 words). Translate each into natural, clear Somali.\n' +
-    'Return ONLY a JSON array like [{"s":START_INDEX,"so":"Somali text"}]. ' +
-    '"s" is the index of the first word of that sentence. Cover all words in order, starting with index ' + from + '.\n\n' +
-    lines.join(' ');
+    'You are segmenting a video transcript for Somali dubbing.\n' +
+    'Each line is: index|start_time_seconds|word.\n\n' +
+    'RULES:\n' +
+    '1. Make SHORT segments, like subtitles: maximum 12 words and maximum 5 seconds each.\n' +
+    '2. ALWAYS start a new segment where the speaker pauses: when the time gap between two consecutive words is noticeably bigger than normal (about 0.4s or more), and after . ? ! and at commas between clauses.\n' +
+    '3. NEVER join words across a long pause. Shorter is better than longer.\n' +
+    '4. Each segment must be understandable on its own.\n' +
+    '5. Translate each segment into natural, SHORT Somali that can be spoken in about the same time as the English.\n' +
+    '6. Cover all words in order, starting at index ' + from + '.\n\n' +
+    'Return ONLY a JSON array like [{"s":START_INDEX,"so":"Somali text"}]. "s" is the index of the first word of the segment.\n\n' +
+    lines.join('\n');
 
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + MODEL + ':generateContent';
   const r = await fetch(url, {
@@ -74,8 +82,7 @@ async function segmentChunk(key, words, from, to) {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.2,
-        responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 }
+        responseMimeType: 'application/json'
       }
     })
   });
@@ -87,4 +94,4 @@ async function segmentChunk(key, words, from, to) {
   const txt = d.candidates && d.candidates[0] && d.candidates[0].content.parts[0].text;
   const arr = JSON.parse(txt);
   return Array.isArray(arr) ? arr : [];
-      }
+}
