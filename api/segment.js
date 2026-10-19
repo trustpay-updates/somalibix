@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   words = words.slice(0, 6000);
 
   try {
-    const CH = 300;
+    const CH = 500;
     const jobs = [];
     for (let i = 0; i < words.length; i += CH) jobs.push(i);
 
@@ -65,7 +65,7 @@ async function segmentChunk(key, words, from, to) {
     'You are segmenting a video transcript for Somali dubbing.\n' +
     'Each line is: index|start_time_seconds|word.\n\n' +
     'RULES:\n' +
-    '1. Make SHORT segments, like subtitles: maximum 12 words and maximum 5 seconds each.\n' +
+    '1. Make natural spoken phrases of about 8-16 words and 3-6 seconds each (never more than 18 words or 7 seconds). Do NOT split a phrase into tiny pieces of 2-4 words: join short fragments that belong to the same thought, unless the speaker clearly pauses.\n' +
     '2. ALWAYS start a new segment where the speaker pauses: when the time gap between two consecutive words is noticeably bigger than normal (about 0.4s or more), and after . ? ! and at commas between clauses.\n' +
     '3. NEVER join words across a long pause. Shorter is better than longer.\n' +
     '4. Each segment must be understandable on its own.\n' +
@@ -75,7 +75,7 @@ async function segmentChunk(key, words, from, to) {
     lines.join('\n');
 
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + MODEL + ':generateContent';
-  const r = await fetch(url, {
+  const r = await fetchRetry(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
@@ -94,4 +94,14 @@ async function segmentChunk(key, words, from, to) {
   const txt = d.candidates && d.candidates[0] && d.candidates[0].content.parts[0].text;
   const arr = JSON.parse(txt);
   return Array.isArray(arr) ? arr : [];
+}
+
+async function fetchRetry(url, opts) {
+  let r;
+  for (let i = 0; i < 3; i++) {
+    r = await fetch(url, opts);
+    if (r.status !== 429 && r.status !== 503) return r;
+    await new Promise(function (ok) { setTimeout(ok, 6000 * (i + 1)); });
+  }
+  return r;
 }
