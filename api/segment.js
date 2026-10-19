@@ -88,7 +88,14 @@ async function segmentChunk(key, words, from, to) {
   });
   if (!r.ok) {
     const t = await r.text();
-    throw new Error('Gemini ' + r.status + ': ' + t.slice(0, 200));
+    let msg = t.slice(0, 200);
+    try {
+      const v = JSON.stringify(JSON.parse(t).error.details || '');
+      const q = v.match(/"quotaId":"([^"]+)"/);
+      const d = v.match(/"retryDelay":"([^"]+)"/);
+      msg = 'quota=' + (q ? q[1] : '?') + ' retry=' + (d ? d[1] : '?');
+    } catch (e) {}
+    throw new Error('Gemini ' + r.status + ': ' + msg);
   }
   const d = await r.json();
   const txt = d.candidates && d.candidates[0] && d.candidates[0].content.parts[0].text;
@@ -104,4 +111,4 @@ async function fetchRetry(url, opts) {
     await new Promise(function (ok) { setTimeout(ok, 6000 * (i + 1)); });
   }
   return r;
-}
+  }
