@@ -1,6 +1,6 @@
 export const config = { maxDuration: 60 };
 
-const MODEL = 'gemini-2.5-flash-lite';
+const MODEL = 'gemini-flash-latest';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
