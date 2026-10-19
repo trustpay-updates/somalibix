@@ -1,6 +1,6 @@
 export const config = { maxDuration: 60 };
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-flash-latest';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -87,4 +87,4 @@ async function segmentChunk(key, words, from, to) {
   const txt = d.candidates && d.candidates[0] && d.candidates[0].content.parts[0].text;
   const arr = JSON.parse(txt);
   return Array.isArray(arr) ? arr : [];
-}
+      }
