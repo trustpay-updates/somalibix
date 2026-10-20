@@ -31,7 +31,21 @@ export default async function handler(req, res) {
   }
 }
 
+const KEEP = ['Play Store', 'Google Play', 'Firebase', 'YouTube', 'Android', 'APK', 'API', 'AI', 'apps', 'app', 'applications', 'application', 'mobile'];
+
 async function gt(text) {
+  let t = text;
+  KEEP.forEach(function (w, i) {
+    t = t.replace(new RegExp('\\b' + w + '\\b', 'g'), 'Zq' + i + 'z');
+  });
+  let out = await gtRaw(t);
+  KEEP.forEach(function (w, i) {
+    out = out.replace(new RegExp('Zq' + i + 'z', 'gi'), w);
+  });
+  return out;
+}
+
+async function gtRaw(text) {
   const r = await fetch(
     'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=so&dt=t',
     {
