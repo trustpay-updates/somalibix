@@ -1,6 +1,7 @@
 export const config = { maxDuration: 60 };
 
-const MODEL = 'gemini-flash-latest';
+const MODEL = 'qwen3.8-max';
+const BASE = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 const KEEP = ['Play Store', 'Google Play', 'Firebase', 'YouTube', 'Android', 'APK', 'API', 'AI', 'apps', 'app', 'applications', 'application', 'mobile'];
 
 export default async function handler(req, res) {
@@ -19,20 +20,20 @@ export default async function handler(req, res) {
   });
 
   try {
-    const key = process.env.GEMINI_API_KEY;
+    const key = process.env.DASHSCOPE_API_KEY;
     const CH = 150;
     const chunks = [];
     for (let i = 0; i < list.length; i += CH) chunks.push(list.slice(i, i + CH));
 
-    let usedGemini = 0;
+    let usedQwen = 0;
     const parts = await Promise.all(chunks.map(async function (c, idx) {
       if (key && idx < 4) {
         try {
-          const g = await geminiChunk(key, c);
-          usedGemini++;
+          const g = await qwenChunk(key, c);
+          usedQwen++;
           return g;
         } catch (e) {
-          console.error('gemini translate failed:', e.message);
+          console.error('qwen translate failed:', e.message);
         }
       }
       return googleChunk(c);
@@ -42,7 +43,7 @@ export default async function handler(req, res) {
     parts.forEach(function (p) { out.push.apply(out, p); });
     return res.status(200).json({
       success: true,
-      engine: usedGemini ? 'gemini' : 'google',
+      engine: usedQwen ? 'qwen' : 'google',
       translations: out
     });
   } catch (e) {
@@ -50,30 +51,42 @@ export default async function handler(req, res) {
   }
 }
 
-async function geminiChunk(key, arr) {
+async function qwenChunk(key, arr) {
   const prompt =
-    'Translate each English subtitle line below into natural, simple, spoken Somali (Af-Soomaali).\n' +
+    'Translate each subtitle line below into natural, simple, spoken Somali (Af-Soomaali). The lines may be in any language.\n' +
     'Keep technical words like app, AI, Android, Play Store, Firebase, API, YouTube in English, as Somali speakers say them.\n' +
-    'Keep each translation short, about the same length as the English, so it can be spoken in the same time.\n' +
-    'Return ONLY a JSON array of strings with EXACTLY ' + arr.length + ' items, in the same order.\n\n' +
+    'Keep each translation short, about the same length as the original, so it can be spoken in the same time.\n' +
+    'Return ONLY a JSON array of strings with EXACTLY ' + arr.length + ' items, in the same order. No markdown, no explanation.\n\n' +
     JSON.stringify(arr);
 
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + MODEL + ':generateContent';
-  const r = await fetch(url, {
+  const r = await fetch(BASE + '/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    signal: AbortSignal.timeout(35000),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + key
+    },
+    signal: AbortSignal.timeout(40000),
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
+      model: MODEL,
+      messages: [
+        { role: 'system', content: 'You output only valid JSON. No markdown, no commentary.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.2,
+      enable_thinking: false
     })
   });
-  if (!r.ok) throw new Error('Gemini ' + r.status);
+  if (!r.ok) throw new Error('Qwen ' + r.status);
   const d = await r.json();
-  const txt = d.candidates && d.candidates[0] && d.candidates[0].content.parts[0].text;
-  const out = JSON.parse(txt);
+  const txt = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+  if (!txt) throw new Error('empty');
+
+  const s = String(txt).replace(/```json|```/gi, '').trim();
+  const a = s.indexOf('['), b = s.lastIndexOf(']');
+  if (a === -1 || b === -1) throw new Error('no array');
+  const out = JSON.parse(s.slice(a, b + 1));
   if (!Array.isArray(out) || out.length !== arr.length) throw new Error('length mismatch');
-  return out.map(function (s, i) { return String(s || arr[i]).trim(); });
+  return out.map(function (x, i) { return String(x || arr[i]).trim(); });
 }
 
 async function googleChunk(arr) {
