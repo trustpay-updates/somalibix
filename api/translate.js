@@ -26,6 +26,7 @@ export default async function handler(req, res) {
     for (let i = 0; i < list.length; i += CH) chunks.push(list.slice(i, i + CH));
 
     let usedQwen = 0;
+    let qwenError = key ? '' : 'DASHSCOPE_API_KEY lama helin (ku dar Vercel + Redeploy)';
     const parts = await Promise.all(chunks.map(async function (c, idx) {
       if (key && idx < 4) {
         try {
@@ -34,6 +35,7 @@ export default async function handler(req, res) {
           return g;
         } catch (e) {
           console.error('qwen translate failed:', e.message);
+          if (!qwenError) qwenError = e.message;
         }
       }
       return googleChunk(c);
@@ -44,6 +46,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       engine: usedQwen ? 'qwen' : 'google',
+      qwenError: qwenError,
       translations: out
     });
   } catch (e) {
@@ -76,7 +79,12 @@ async function qwenChunk(key, arr) {
       enable_thinking: false
     })
   });
-  if (!r.ok) throw new Error('Qwen ' + r.status);
+  if (!r.ok) {
+    const bt = await r.text();
+    let m = bt.slice(0, 150);
+    try { const j = JSON.parse(bt); if (j.error) m = (j.error.code || '') + ' ' + (j.error.message || ''); } catch (e) {}
+    throw new Error('Qwen HTTP ' + r.status + ': ' + m.slice(0, 150));
+  }
   const d = await r.json();
   const txt = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
   if (!txt) throw new Error('empty');
