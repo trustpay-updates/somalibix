@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   words = words.slice(0, 6000);
 
   try {
-    const CH = 500;
+    const CH = 1500;
     const jobs = [];
     for (let i = 0; i < words.length; i += CH) jobs.push(i);
 
@@ -105,10 +105,17 @@ async function segmentChunk(key, words, from, to) {
 
 async function fetchRetry(url, opts) {
   let r;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     r = await fetch(url, opts);
     if (r.status !== 429 && r.status !== 503) return r;
-    await new Promise(function (ok) { setTimeout(ok, 6000 * (i + 1)); });
+    let wait = 8000;
+    try {
+      const j = JSON.parse(await r.clone().text());
+      const m = JSON.stringify(j.error.details || '').match(/"retryDelay":"(\d+)/);
+      if (m) wait = (parseInt(m[1], 10) + 2) * 1000;
+    } catch (e) {}
+    if (wait > 30000) return r;
+    await new Promise(function (ok) { setTimeout(ok, wait); });
   }
   return r;
   }
