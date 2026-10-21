@@ -1,7 +1,7 @@
 export const config = { maxDuration: 60 };
 
-const MODEL = 'qwen3.8-max';
-const BASE = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
+const MODEL = (process.env.AI_MODEL || 'qwen/qwen3.8-max:free').trim();
+const BASE = (process.env.AI_BASE_URL || 'https://api.xkiro.com/v1').trim();
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -10,8 +10,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'POST kaliya' });
 
-  const key = process.env.DASHSCOPE_API_KEY;
-  if (!key) return res.status(500).json({ success: false, error: 'DASHSCOPE_API_KEY lama helin' });
+  const key = (process.env.XKIRO_API_KEY || '').trim();
+  if (!key) return res.status(500).json({ success: false, error: 'XKIRO_API_KEY lama helin' });
 
   let words = req.body && req.body.words;
   if (!Array.isArray(words) || words.length < 5) {
@@ -77,28 +77,46 @@ async function segmentChunk(key, words, from, to) {
     'Return ONLY a JSON array like [{"s":START_INDEX,"so":"Somali text"}]. No explanation, no markdown. "s" is the index of the first word of the segment.\n\n' +
     lines.join('\n');
 
-  const txt = await callQwen(key, prompt);
+  const txt = await callAI(key, prompt);
   return parseJsonArray(txt);
 }
 
-async function callQwen(key, prompt) {
-  const r = await fetchRetry(BASE + '/chat/completions', {
+function makeOpts(key, payload) {
+  return {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + key
     },
     signal: AbortSignal.timeout(55000),
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: 'You output only valid JSON. No markdown, no commentary.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.2,
-      enable_thinking: false
-    })
-  });
+    body: JSON.stringify(payload)
+  };
+}
+
+async function callAI(key, prompt) {
+  const url = BASE + '/chat/completions';
+  const payload = {
+    model: MODEL,
+    messages: [
+      { role: 'system', content: 'You output only valid JSON. No markdown, no commentary.' },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.2,
+    max_tokens: 8000,
+    reasoning: { enabled: false }
+  };
+
+  let r = await fetchRetry(url, makeOpts(key, payload));
+
+  // Haddii xkiro uu diido "reasoning", ku celi isagoon la socon
+  if (r.status === 400) {
+    const t400 = await r.clone().text();
+    if (/reasoning/i.test(t400)) {
+      delete payload.reasoning;
+      r = await fetchRetry(url, makeOpts(key, payload));
+    }
+  }
+
   if (!r.ok) {
     const t = await r.text();
     let msg = t.slice(0, 200);
@@ -106,11 +124,11 @@ async function callQwen(key, prompt) {
       const j = JSON.parse(t);
       if (j.error) msg = (j.error.code || '') + ' ' + (j.error.message || '');
     } catch (e) {}
-    throw new Error('Qwen ' + r.status + ': ' + msg.slice(0, 160));
+    throw new Error('xkiro HTTP ' + r.status + ': ' + msg.slice(0, 160));
   }
   const d = await r.json();
   const txt = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
-  if (!txt) throw new Error('Qwen jawaab madhan');
+  if (!txt) throw new Error('AI jawaab madhan');
   return txt;
 }
 
