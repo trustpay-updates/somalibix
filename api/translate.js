@@ -21,14 +21,14 @@ export default async function handler(req, res) {
 
   try {
     const key = (process.env.XKIRO_API_KEY || '').trim();
-    const CH = 150;
+    const CH = 40;
     const chunks = [];
     for (let i = 0; i < list.length; i += CH) chunks.push(list.slice(i, i + CH));
 
     let usedQwen = 0;
     let qwenError = key ? '' : 'XKIRO_API_KEY lama helin (ku dar Vercel + Redeploy)';
     const parts = await Promise.all(chunks.map(async function (c, idx) {
-      if (key && idx < 4) {
+      if (key && idx < 10) {
         try {
           const g = await aiChunk(key, c);
           usedQwen++;
@@ -61,7 +61,7 @@ function makeOpts(key, payload) {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + key
     },
-    signal: AbortSignal.timeout(40000),
+    signal: AbortSignal.timeout(45000),
     body: JSON.stringify(payload)
   };
 }
@@ -82,7 +82,7 @@ async function aiChunk(key, arr) {
       { role: 'user', content: prompt }
     ],
     temperature: 0.2,
-    max_tokens: 8000,
+    max_tokens: 4000,
     reasoning: { enabled: false }
   };
 
