@@ -1,7 +1,7 @@
 export const config = { maxDuration: 60 };
 
-const MODEL = 'qwen3.8-max';
-const BASE = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
+const MODEL = (process.env.AI_MODEL || 'qwen/qwen3.8-max:free').trim();
+const BASE = (process.env.AI_BASE_URL || 'https://api.xkiro.com/v1').trim();
 const KEEP = ['Play Store', 'Google Play', 'Firebase', 'YouTube', 'Android', 'APK', 'API', 'AI', 'apps', 'app', 'applications', 'application', 'mobile'];
 
 export default async function handler(req, res) {
@@ -20,21 +20,21 @@ export default async function handler(req, res) {
   });
 
   try {
-    const key = process.env.DASHSCOPE_API_KEY;
+    const key = (process.env.XKIRO_API_KEY || '').trim();
     const CH = 150;
     const chunks = [];
     for (let i = 0; i < list.length; i += CH) chunks.push(list.slice(i, i + CH));
 
     let usedQwen = 0;
-    let qwenError = key ? '' : 'DASHSCOPE_API_KEY lama helin (ku dar Vercel + Redeploy)';
+    let qwenError = key ? '' : 'XKIRO_API_KEY lama helin (ku dar Vercel + Redeploy)';
     const parts = await Promise.all(chunks.map(async function (c, idx) {
       if (key && idx < 4) {
         try {
-          const g = await qwenChunk(key, c);
+          const g = await aiChunk(key, c);
           usedQwen++;
           return g;
         } catch (e) {
-          console.error('qwen translate failed:', e.message);
+          console.error('ai translate failed:', e.message);
           if (!qwenError) qwenError = e.message;
         }
       }
@@ -54,7 +54,19 @@ export default async function handler(req, res) {
   }
 }
 
-async function qwenChunk(key, arr) {
+function makeOpts(key, payload) {
+  return {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + key
+    },
+    signal: AbortSignal.timeout(40000),
+    body: JSON.stringify(payload)
+  };
+}
+
+async function aiChunk(key, arr) {
   const prompt =
     'Translate each subtitle line below into natural, simple, spoken Somali (Af-Soomaali). The lines may be in any language.\n' +
     'Keep technical words like app, AI, Android, Play Store, Firebase, API, YouTube in English, as Somali speakers say them.\n' +
@@ -62,28 +74,34 @@ async function qwenChunk(key, arr) {
     'Return ONLY a JSON array of strings with EXACTLY ' + arr.length + ' items, in the same order. No markdown, no explanation.\n\n' +
     JSON.stringify(arr);
 
-  const r = await fetch(BASE + '/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + key
-    },
-    signal: AbortSignal.timeout(40000),
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: 'You output only valid JSON. No markdown, no commentary.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.2,
-      enable_thinking: false
-    })
-  });
+  const url = BASE + '/chat/completions';
+  const payload = {
+    model: MODEL,
+    messages: [
+      { role: 'system', content: 'You output only valid JSON. No markdown, no commentary.' },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0.2,
+    max_tokens: 8000,
+    reasoning: { enabled: false }
+  };
+
+  let r = await fetch(url, makeOpts(key, payload));
+
+  // Haddii xkiro uu diido "reasoning", ku celi isagoon la socon
+  if (r.status === 400) {
+    const t400 = await r.clone().text();
+    if (/reasoning/i.test(t400)) {
+      delete payload.reasoning;
+      r = await fetch(url, makeOpts(key, payload));
+    }
+  }
+
   if (!r.ok) {
     const bt = await r.text();
     let m = bt.slice(0, 150);
     try { const j = JSON.parse(bt); if (j.error) m = (j.error.code || '') + ' ' + (j.error.message || ''); } catch (e) {}
-    throw new Error('Qwen HTTP ' + r.status + ': ' + m.slice(0, 150));
+    throw new Error('xkiro HTTP ' + r.status + ': ' + m.slice(0, 150));
   }
   const d = await r.json();
   const txt = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
