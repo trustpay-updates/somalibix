@@ -1,15 +1,42 @@
 export const config = { maxDuration: 60 };
 
-const MODEL = (process.env.AI_MODEL || 'qwen/qwen3.8-max:free').trim();
-const BASE = (process.env.AI_BASE_URL || 'https://api.xkiro.com/v1').trim();
-const KEEP = ['Play Store', 'Google Play', 'Firebase', 'YouTube', 'Android', 'APK', 'API', 'AI', 'apps', 'app', 'applications', 'application', 'mobile'];
+// Erayada Ingiriisiga ah ee aan la tarjumin (codku wuxuu ku akhriyaa Ingiriis).
+// Halkan ku dar eray kasta oo aad rabto inuu English ahaado.
+const KEEP = [
+  'Play Store', 'Google Play', 'App Store', 'Firebase', 'YouTube', 'Android', 'iPhone', 'iOS',
+  'APK', 'API', 'AI', 'ChatGPT', 'Gemini', 'Claude', 'Qwen', 'GitHub', 'Vercel',
+  'WhatsApp', 'Telegram', 'Facebook', 'TikTok', 'Instagram', 'Google',
+  'apps', 'app', 'applications', 'application',
+  'models', 'model', 'laptop', 'laptops', 'computer', 'computers', 'PC',
+  'mobile', 'smartphone', 'tablet', 'website', 'websites', 'link', 'links',
+  'video', 'videos', 'internet', 'email', 'password', 'software', 'hardware',
+  'server', 'database', 'code', 'coding', 'prompt', 'prompts', 'tool', 'tools',
+  'download', 'upload', 'login', 'online', 'offline', 'screen', 'button', 'template',
+  'design', 'update', 'extension', 'browser', 'chatbot', 'bot', 'program', 'programming'
+];
+const ALIAS = { application: 'app', applications: 'apps' };
 
-const CH = 30;            // jumladaha chunk kasta
-const MAX_AI_CHUNKS = 12; // AI wuxuu qabanayaa CH x 12 = 360 jumladood; inta kale Google
-const BUDGET_MS = 46000;  // wadarta waqtiga AI
-const TRY_MS = 20000;     // isku day kasta
+const LIST = KEEP.slice().sort(function (a, b) { return b.length - a.length; });
+function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+const RX = LIST.map(function (w) { return new RegExp('\\b' + esc(w) + '\\b', 'gi'); });
+const BACK = LIST.map(function (w) { return ALIAS[w.toLowerCase()] || w; });
+
+const HOSTS = ['https://translate.googleapis.com', 'https://translate.google.com'];
+const BATCH = 30;
+const PARALLEL = 6;
 
 function sleep(ms) { return new Promise(function (ok) { setTimeout(ok, ms); }); }
+
+function protect(t) {
+  RX.forEach(function (rx, i) { t = t.replace(rx, 'Zq' + i + 'z'); });
+  return t;
+}
+function restore(t) {
+  BACK.forEach(function (w, i) {
+    t = t.replace(new RegExp('Zq\\s?' + i + '\\s?z', 'gi'), w);
+  });
+  return t;
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,183 +53,82 @@ export default async function handler(req, res) {
     return String(t).replace(/\s*\n\s*/g, ' ').trim();
   });
 
-  const t0 = Date.now();
-  const key = (process.env.XKIRO_API_KEY || '').trim();
-  const results = new Array(list.length).fill(null);
-  const errs = [];
-
   try {
-    if (key) {
-      const jobs = [];
-      for (let s = 0, ci = 0; s < list.length && ci < MAX_AI_CHUNKS; s += CH, ci++) {
-        jobs.push({ start: s, arr: list.slice(s, s + CH) });
-      }
-      await Promise.all(jobs.map(async function (j) {
-        const out = await aiRobust(key, j.arr, t0, errs);
-        out.forEach(function (v, k) { if (v) results[j.start + k] = v; });
-      }));
-    } else {
-      errs.push('XKIRO_API_KEY lama helin (ku dar Vercel + Redeploy)');
-    }
+    const batches = [];
+    for (let i = 0; i < list.length; i += BATCH) batches.push(list.slice(i, i + BATCH));
 
-    let aiCount = 0;
-    const missing = [];
-    results.forEach(function (v, i) { if (v) aiCount++; else missing.push(i); });
+    const stats = { failed: 0 };
+    const parts = await pool(batches, PARALLEL, function (b) { return translateBatch(b, stats); });
 
-    if (missing.length) {
-      const g = await googleChunk(missing.map(function (i) { return list[i]; }));
-      missing.forEach(function (i, k) { results[i] = g[k] || list[i]; });
-    }
+    const out = [];
+    parts.forEach(function (p) { out.push.apply(out, p); });
 
     return res.status(200).json({
       success: true,
-      engine: aiCount ? 'qwen' : 'google',
-      qwenError: missing.length
-        ? (errs[0] || ('AI waxaa loo isticmaalay ' + (MAX_AI_CHUNKS * CH) + ' jumladood oo hore')) +
-          ' (' + missing.length + '/' + list.length + ' Google)'
+      engine: 'google',
+      qwenError: stats.failed
+        ? (stats.failed + ' jumladood lama tarjumi karin (qoraalka asalka ayaa la ilaaliyay)')
         : '',
-      translations: results
+      translations: out
     });
   } catch (e) {
     return res.status(500).json({ success: false, error: e.message || 'error' });
   }
 }
 
-function makeOpts(key, payload, ms) {
-  return {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + key
-    },
-    signal: AbortSignal.timeout(ms),
-    body: JSON.stringify(payload)
-  };
-}
-
-// Dib u isku day: kuwa maqan oo kaliya ayaa dib loo weydiiyaa
-async function aiRobust(key, arr, t0, errs) {
-  const out = new Array(arr.length).fill(null);
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const idx = [];
-    out.forEach(function (v, i) { if (!v) idx.push(i); });
-    if (!idx.length) break;
-    const left = BUDGET_MS - (Date.now() - t0);
-    if (left < 6000) break;
-    try {
-      const part = await aiCall(key, idx.map(function (i) { return arr[i]; }), Math.min(TRY_MS, left));
-      part.forEach(function (v, k) { if (v) out[idx[k]] = v; });
-    } catch (e) {
-      console.error('ai attempt failed:', e.message);
-      errs.push(e.message);
-      await sleep(600 * (attempt + 1));
-    }
+async function pool(items, n, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const workers = [];
+  for (let w = 0; w < Math.min(n, items.length); w++) {
+    workers.push((async function () {
+      while (next < items.length) {
+        const k = next++;
+        out[k] = await fn(items[k], k);
+      }
+    })());
   }
-  return out;
-}
-
-async function aiCall(key, lines, timeoutMs) {
-  const numbered = lines.map(function (t, i) { return (i + 1) + '|' + t; }).join('\n');
-  const prompt =
-    'Translate each subtitle line below into natural, simple, spoken Somali (Af-Soomaali). The lines may be in any language.\n' +
-    'Keep technical words like app, AI, Android, Play Store, Firebase, API, YouTube in English, as Somali speakers say them.\n' +
-    'Keep each translation short, about the same length as the original, so it can be spoken in the same time.\n' +
-    'Output EXACTLY ' + lines.length + ' lines, one per input line, in the format N|Somali translation (same number N as the input line).\n' +
-    'Output nothing else: no markdown, no explanations, no blank lines.\n\n' +
-    numbered;
-
-  const url = BASE + '/chat/completions';
-  const payload = {
-    model: MODEL,
-    messages: [
-      { role: 'system', content: 'You are a translation engine. Output only the numbered lines requested.' },
-      { role: 'user', content: prompt }
-    ],
-    temperature: 0.2,
-    max_tokens: 8000,
-    reasoning: { enabled: false }
-  };
-
-  const deadline = Date.now() + timeoutMs;
-  let r = await fetch(url, makeOpts(key, payload, timeoutMs));
-
-  // Haddii xkiro uu diido "reasoning", ku celi isagoon la socon
-  if (r.status === 400) {
-    const t400 = await r.clone().text();
-    if (/reasoning/i.test(t400)) {
-      delete payload.reasoning;
-      r = await fetch(url, makeOpts(key, payload, Math.max(3000, deadline - Date.now())));
-    }
-  }
-
-  if (!r.ok) {
-    const bt = await r.text();
-    let m = bt.slice(0, 150);
-    try { const j = JSON.parse(bt); if (j.error) m = (j.error.code || '') + ' ' + (j.error.message || ''); } catch (e) {}
-    throw new Error('xkiro HTTP ' + r.status + ': ' + m.slice(0, 120));
-  }
-
-  const d = await r.json();
-  const txt = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
-  if (!txt) throw new Error('jawaab madhan');
-
-  const out = new Array(lines.length).fill(null);
-  let got = 0;
-  String(txt).replace(/```[a-z]*/gi, '').split('\n').forEach(function (ln) {
-    const m = ln.match(/^\s*(\d+)\s*\|\s*(.+?)\s*$/);
-    if (!m) return;
-    const n = parseInt(m[1], 10) - 1;
-    if (n >= 0 && n < out.length && !out[n]) { out[n] = m[2].trim(); got++; }
-  });
-  if (!got) throw new Error('qaab jawaab khaldan');
-  return out;
-}
-
-async function googleChunk(arr) {
-  const B = 40, batches = [];
-  for (let i = 0; i < arr.length; i += B) batches.push(arr.slice(i, i + B));
-  const res = await Promise.all(batches.map(translateBatch));
-  const out = [];
-  res.forEach(function (r) { out.push.apply(out, r); });
-  return out;
-}
-
-async function gt(text) {
-  let t = text;
-  KEEP.forEach(function (w, i) {
-    t = t.replace(new RegExp('\\b' + w + '\\b', 'g'), 'Zq' + i + 'z');
-  });
-  let out = await gtRaw(t);
-  KEEP.forEach(function (w, i) {
-    const back = w === 'application' ? 'app' : (w === 'applications' ? 'apps' : w);
-    out = out.replace(new RegExp('Zq' + i + 'z', 'gi'), back);
-  });
+  await Promise.all(workers);
   return out;
 }
 
 async function gtRaw(text) {
-  const r = await fetch(
-    'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=so&dt=t',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      signal: AbortSignal.timeout(8000),
-      body: 'q=' + encodeURIComponent(text)
+  let lastErr;
+  for (let a = 0; a < 3; a++) {
+    try {
+      const r = await fetch(
+        HOSTS[a % HOSTS.length] + '/translate_a/single?client=gtx&sl=auto&tl=so&dt=t',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          signal: AbortSignal.timeout(8000),
+          body: 'q=' + encodeURIComponent(text)
+        }
+      );
+      if (!r.ok) throw new Error('Translate ' + r.status);
+      const d = await r.json();
+      return (d[0] || []).map(function (x) { return x[0] || ''; }).join('');
+    } catch (e) {
+      lastErr = e;
+      await sleep(300 * (a + 1));
     }
-  );
-  if (!r.ok) throw new Error('Translate ' + r.status);
-  const d = await r.json();
-  return (d[0] || []).map(function (x) { return x[0] || ''; }).join('');
+  }
+  throw lastErr;
 }
 
-async function translateBatch(arr) {
+async function gt(text) {
+  return restore(await gtRaw(protect(text)));
+}
+
+async function translateBatch(arr, stats) {
+  // 1) Dhammaan hal mar (degdeg)
   try {
     const parts = (await gt(arr.join('\n'))).split('\n');
     if (parts.length === arr.length) return parts.map(function (s) { return s.trim(); });
   } catch (e) {}
-  const out = [];
-  for (let i = 0; i < arr.length; i++) {
-    try { out.push((await gt(arr[i])).trim()); } catch (e) { out.push(arr[i]); }
-  }
-  return out;
+  // 2) Haddii tirada ay is waafaqi weydo, mid-mid isla markiiba (parallel)
+  return Promise.all(arr.map(async function (line) {
+    try { return (await gt(line)).trim() || line; }
+    catch (e) { stats.failed++; return line; }
+  }));
 }
